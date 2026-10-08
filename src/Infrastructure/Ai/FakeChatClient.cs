@@ -87,7 +87,7 @@ public sealed partial class FakeChatClient : IChatClient
 
         (string Tool, Dictionary<string, object?> Args)? call =
             lower.Contains("CREATE", StringComparison.Ordinal) && lower.Contains("TICKET", StringComparison.Ordinal)
-                ? ("create_support_ticket", new() { ["title"] = text.Length > 80 ? text[..80] : text, ["description"] = text, ["priority"] = lower.Contains("URGENT", StringComparison.Ordinal) ? "high" : "medium", ["customer_email"] = email })
+                ? ("create_support_ticket", new() { ["title"] = TicketTitle(text), ["description"] = text, ["priority"] = lower.Contains("URGENT", StringComparison.Ordinal) ? "high" : "medium", ["customer_email"] = email })
             : ticketNumber is { } n && (lower.Contains("RESOLVE", StringComparison.Ordinal) || lower.Contains("CLOSE", StringComparison.Ordinal) || lower.Contains("PROGRESS", StringComparison.Ordinal))
                 ? ("update_support_ticket", new() { ["ticket_number"] = n, ["status"] = lower.Contains("RESOLVE", StringComparison.Ordinal) ? "resolved" : lower.Contains("CLOSE", StringComparison.Ordinal) ? "closed" : "in_progress" })
             : ticketNumber is { } m
@@ -108,6 +108,15 @@ public sealed partial class FakeChatClient : IChatClient
 
         var message = new ChatMessage(ChatRole.Assistant, [new FunctionCallContent($"call_{Guid.NewGuid():N}", call.Value.Tool, call.Value.Args)]);
         return new ChatResponse(message) { ModelId = ModelId, Usage = new UsageDetails { InputTokenCount = 50, OutputTokenCount = 10 } };
+    }
+
+    /// <summary>"Please create a ticket for x@y: urgent, exports fail" -> "Urgent, exports fail".</summary>
+    private static string TicketTitle(string request)
+    {
+        var colon = request.IndexOf(':', StringComparison.Ordinal);
+        var issue = (colon >= 0 && colon < request.Length - 3 ? request[(colon + 1)..] : request).Trim();
+        issue = char.ToUpperInvariant(issue[0]) + issue[1..];
+        return issue.Length > 80 ? issue[..80].TrimEnd() : issue;
     }
 
     private static ChatResponse Reply(string text) =>

@@ -14,7 +14,7 @@ public sealed partial class TextChunker(ITokenCounter tokens, int maxTokens, int
 {
     private readonly int _overlapTokens = Math.Min(overlapTokens, maxTokens / 2);
 
-    private sealed record Unit(string Text, int Tokens, string? Heading);
+    private sealed record Unit(string Text, int Tokens, string? Heading, bool IsHeading = false);
 
     public IReadOnlyList<TextChunk> Chunk(IEnumerable<ExtractedSection> sections, bool markdownHeadings)
     {
@@ -31,9 +31,18 @@ public sealed partial class TextChunker(ITokenCounter tokens, int maxTokens, int
             {
                 if (markdownHeadings && HeadingLine().Match(paragraph) is { Success: true } match)
                 {
-                    Pack(units, section.PageNumber, chunks);
-                    units = [];
+                    // Flush the previous section, unless it is only headings (e.g. a document title
+                    // directly followed by its first section): a chunk with no body is retrieval noise,
+                    // so those headings carry forward into the next chunk instead.
+                    if (units.Any(u => !u.IsHeading))
+                    {
+                        Pack(units, section.PageNumber, chunks);
+                        units = [];
+                    }
+
                     heading = match.Groups["title"].Value.Trim();
+                    units.Add(new Unit(paragraph, tokens.Count(paragraph), heading, IsHeading: true));
+                    continue;
                 }
 
                 units.AddRange(SplitToFit(paragraph).Select(text => new Unit(text, tokens.Count(text), heading)));

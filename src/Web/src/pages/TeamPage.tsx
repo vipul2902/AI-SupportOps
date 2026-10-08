@@ -119,7 +119,7 @@ export default function TeamPage() {
         <form onSubmit={submitInvite} className="space-y-4">
           <Field label="Email" htmlFor="invite-email"><Input id="invite-email" name="email" type="email" required autoFocus /></Field>
           <Field label="Role" htmlFor="invite-role">
-            <Select id="invite-role" name="role" defaultValue="Agent">{assignable.map(r => <option key={r}>{r}</option>)}</Select>
+            <Select id="invite-role" name="role" defaultValue="Agent" className="w-full">{assignable.map(r => <option key={r}>{r}</option>)}</Select>
           </Field>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setInviting(false)}>Cancel</Button>

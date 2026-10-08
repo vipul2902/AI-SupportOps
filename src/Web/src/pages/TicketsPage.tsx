@@ -126,6 +126,13 @@ function TicketPanel({ id, canEdit, onClose }: { id: string; canEdit: boolean; o
     },
   })
 
+  // Audit entries store ids; show the names we know (assignees from the team, the linked customer).
+  const names = new Map<string, string>(members.data?.map(m => [m.userId, m.displayName]) ?? [])
+  if (ticket.data?.customer) names.set(ticket.data.customer.id, ticket.data.customer.name)
+  const fieldLabel = (field: string) => ({ assigneeUserId: 'Assignee', customerId: 'Customer' })[field] ?? humanize(field)
+  const display = (field: string, value: string | null) =>
+    value === null ? null : field.endsWith('Id') ? names.get(value) ?? 'someone else' : humanize(value)
+
   const t = ticket.data
   return (
     <aside className="flex w-full max-w-md shrink-0 flex-col border-l border-slate-200 bg-white" aria-label="Ticket details">
@@ -154,7 +161,7 @@ function TicketPanel({ id, canEdit, onClose }: { id: string; canEdit: boolean; o
               <div className="col-span-2">
                 <dt className="mb-1 text-xs text-slate-500">Assignee</dt>
                 {canEdit ? (
-                  <Select value={t.assignee?.id ?? ''} disabled={update.isPending} aria-label="Assignee"
+                  <Select value={t.assignee?.id ?? ''} disabled={update.isPending} aria-label="Assignee" className="w-full"
                     onChange={e => update.mutate(e.target.value ? { assigneeUserId: e.target.value } : { unassign: true })}>
                     <option value="">Unassigned</option>
                     {members.data?.filter(m => m.role !== 'Viewer').map(m => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}
@@ -164,7 +171,7 @@ function TicketPanel({ id, canEdit, onClose }: { id: string; canEdit: boolean; o
               {canEdit && (
                 <div className="col-span-2">
                   <dt className="mb-1 text-xs text-slate-500">Priority</dt>
-                  <Select value={t.priority} disabled={update.isPending} aria-label="Priority" onChange={e => update.mutate({ priority: e.target.value })}>
+                  <Select value={t.priority} disabled={update.isPending} aria-label="Priority" className="w-full" onChange={e => update.mutate({ priority: e.target.value })}>
                     {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
                   </Select>
                 </div>
@@ -193,11 +200,17 @@ function TicketPanel({ id, canEdit, onClose }: { id: string; canEdit: boolean; o
                       {h.actorType === 'AiAgent' && <span className="text-brand-600"> via AI agent</span>}
                       <span className="text-slate-400"> · {timeAgo(h.createdAt)}</span>
                     </p>
-                    <ul className="mt-0.5 text-slate-500">
-                      {h.changes.filter(c => c.field !== 'description').map(c => (
-                        <li key={c.field}>{humanize(c.field)}: {c.from !== null && <><span className="line-through">{c.from}</span> → </>}{c.to ?? '—'}</li>
-                      ))}
-                    </ul>
+                    {h.action === 'ticket.created' ? (
+                      <p className="mt-0.5 text-slate-500">Created the ticket ({humanize(h.changes.find(c => c.field === 'priority')?.to ?? '')} priority)</p>
+                    ) : (
+                      <ul className="mt-0.5 text-slate-500">
+                        {h.changes.filter(c => c.field !== 'description').map(c => (
+                          <li key={c.field}>
+                            {fieldLabel(c.field)}: {c.from !== null && <><span className="line-through">{display(c.field, c.from)}</span> → </>}{display(c.field, c.to) ?? '—'}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </li>
                 ))}
               </ol>
@@ -230,7 +243,7 @@ function CreateTicketDialog({ open, onClose, onCreated }: { open: boolean; onClo
         <Field label="Title" htmlFor="title"><Input id="title" name="title" required maxLength={200} autoFocus /></Field>
         <Field label="Description" htmlFor="description"><Textarea id="description" name="description" rows={4} maxLength={10000} /></Field>
         <Field label="Priority" htmlFor="priority">
-          <Select id="priority" name="priority" defaultValue="Medium">{PRIORITIES.map(p => <option key={p}>{p}</option>)}</Select>
+          <Select id="priority" name="priority" defaultValue="Medium" className="w-full">{PRIORITIES.map(p => <option key={p}>{p}</option>)}</Select>
         </Field>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>

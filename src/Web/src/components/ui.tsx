@@ -37,8 +37,10 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<H
   <textarea ref={ref} {...props} className={cx(fieldClass, className)} />)
 Textarea.displayName = 'Textarea'
 
+// Unlike text inputs, selects size to their content by default; callers opt into w-full where a
+// full-width field is wanted. (A forced w-full squeezed sibling text to zero width in flex rows.)
 export function Select({ className, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select {...props} className={cx(fieldClass, 'pr-8', className)} />
+  return <select {...props} className={cx(fieldClass.replace('block w-full', 'block'), 'pr-8', className)} />
 }
 
 export function Field({ label, htmlFor, hint, children }: { label: string; htmlFor: string; hint?: string; children: ReactNode }) {

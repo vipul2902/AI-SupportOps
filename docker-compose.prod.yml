@@ -77,6 +77,8 @@ services:
       Ai__Provider: ${AI_PROVIDER:?set OpenAI or Fake}
       Ai__OpenAI__ApiKey: ${OPENAI_API_KEY:-}
       Ai__OpenAI__ChatModel: ${OPENAI_CHAT_MODEL:-gpt-4o-mini}
+      # Relevance threshold is embedding-model specific: ~0.30 for OpenAI text-embedding-3, ~0.20 for the offline Fake.
+      Rag__MinScore: ${RAG_MIN_SCORE:-0.3}
       # Trust X-Forwarded-For only from nginx's network (the "frontend" subnet below).
       ForwardedHeaders__KnownNetworks__0: 172.31.10.0/24
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}

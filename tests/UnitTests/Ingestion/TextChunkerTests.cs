@@ -93,6 +93,19 @@ public class TextChunkerTests
     }
 
     [Fact]
+    public void A_heading_without_body_merges_into_the_next_section_instead_of_becoming_a_chunk()
+    {
+        const string text = "# Billing and invoices\n\n## Invoices\n\nInvoices are monthly.\n\n## Refunds\n\nRefunds take five days.";
+
+        var chunks = new TextChunker(Words, maxTokens: 500, overlapTokens: 50)
+            .Chunk([new ExtractedSection(text, null)], markdownHeadings: true);
+
+        Assert.Equal(2, chunks.Count);
+        Assert.StartsWith("# Billing and invoices\n\n## Invoices", chunks[0].Content, StringComparison.Ordinal);
+        Assert.DoesNotContain(chunks, c => c.Content.Split("\n\n").All(p => p.StartsWith('#')));
+    }
+
+    [Fact]
     public void Markdown_sections_start_new_chunks_even_when_they_would_fit_together()
     {
         const string text = "# Billing\n\nInvoices are monthly.\n\n## Refunds\n\nRefunds take five days.";

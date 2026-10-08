@@ -48,7 +48,7 @@ export function CitationList({ citations, messageKey }: { citations: Citation[];
               {c.heading && <span className="text-slate-500"> · {c.heading}</span>}
               <span className="ml-1.5 text-slate-400 tabular-nums">relevance {c.score.toFixed(2)}</span>
             </p>
-            <p className="mt-0.5 line-clamp-2 text-slate-600">{c.snippet}</p>
+            <p className="mt-0.5 line-clamp-2 text-slate-600">{c.snippet.replace(/^#{1,6}\s+/gm, '')}</p>
           </div>
         </div>
       ))}
