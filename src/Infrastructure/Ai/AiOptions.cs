@@ -43,4 +43,11 @@ public sealed class OpenAISettings
 
     [Required]
     public string EmbeddingModel { get; set; } = "text-embedding-3-small";
+
+    /// <summary>Chat model for answers. Verify against the provider's current model list.</summary>
+    [Required]
+    public string ChatModel { get; set; } = "gpt-4o-mini";
+
+    [Range(typeof(TimeSpan), "00:00:05", "00:05:00")]
+    public TimeSpan RequestTimeout { get; set; } = TimeSpan.FromSeconds(60);
 }

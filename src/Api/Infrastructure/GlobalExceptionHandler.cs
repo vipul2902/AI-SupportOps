@@ -1,3 +1,4 @@
+using AISupportOps.Application.Ai;
 using AISupportOps.Application.Common;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
@@ -30,6 +31,7 @@ internal sealed partial class GlobalExceptionHandler(
             BusinessRuleException => (StatusCodes.Status422UnprocessableEntity, "Business rule violated"),
             UnsupportedFileException => (StatusCodes.Status415UnsupportedMediaType, "Unsupported file"),
             PayloadTooLargeException => (StatusCodes.Status413PayloadTooLarge, "Payload too large"),
+            AiUnavailableException => (StatusCodes.Status503ServiceUnavailable, "AI service unavailable"),
             BadHttpRequestException bad => (bad.StatusCode, "Bad request"),
             _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred."),
         };
@@ -48,7 +50,7 @@ internal sealed partial class GlobalExceptionHandler(
             {
                 Status = status,
                 Title = title,
-                Detail = exception is AppException ? exception.Message : null,
+                Detail = exception is AppException or AiUnavailableException ? exception.Message : null,
             },
         });
     }

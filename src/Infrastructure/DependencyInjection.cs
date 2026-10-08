@@ -1,4 +1,5 @@
 using AISupportOps.Application.Common;
+using AISupportOps.Application.Ai;
 using AISupportOps.Application.Documents;
 using AISupportOps.Application.Identity;
 using AISupportOps.Application.Ingestion;
@@ -100,6 +101,31 @@ public static class DependencyInjection
                 sp.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>(),
                 model,
                 sp.GetRequiredService<ILogger<EmbeddingService>>());
+        });
+
+        services.AddSingleton<IChatClient>(sp =>
+        {
+            var ai = sp.GetRequiredService<IOptions<AiOptions>>().Value;
+            if (ai.Provider == AiProvider.Fake)
+            {
+                return new FakeChatClient();
+            }
+
+            var client = new OpenAIClient(
+                new System.ClientModel.ApiKeyCredential(ai.OpenAI.ApiKey!),
+                new OpenAIClientOptions { Endpoint = ai.OpenAI.Endpoint });
+            return client.GetChatClient(ai.OpenAI.ChatModel).AsIChatClient();
+        });
+
+        services.AddSingleton<IAiChatService>(sp =>
+        {
+            var ai = sp.GetRequiredService<IOptions<AiOptions>>().Value;
+            var model = ai.Provider == AiProvider.Fake ? FakeChatClient.ModelId : ai.OpenAI.ChatModel;
+            return new AiChatService(
+                sp.GetRequiredService<IChatClient>(),
+                model,
+                ai.OpenAI.RequestTimeout,
+                sp.GetRequiredService<ILogger<AiChatService>>());
         });
 
         services.AddScoped<IRetrievalService, PgvectorRetrievalService>();

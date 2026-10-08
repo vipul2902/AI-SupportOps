@@ -25,6 +25,7 @@ public static class Policies
 public static class RateLimitPolicies
 {
     public const string Auth = "auth";
+    public const string Ai = "ai";
 }
 
 internal static class AuthSetup
@@ -62,6 +63,7 @@ internal static class AuthSetup
             .AddPolicy(Policies.Owner, p => RequireAtLeast(p, TenantRole.Owner));
 
         var authPermitLimit = configuration.GetValue("RateLimiting:AuthPermitsPerMinute", 10);
+        var aiPermitLimit = configuration.GetValue("RateLimiting:AiRequestsPerMinute", 30);
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -74,6 +76,18 @@ internal static class AuthSetup
                     {
                         PermitLimit = authPermitLimit,
                         Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0,
+                    }));
+
+            // Per user (not IP): LLM calls cost money, so each account gets a budget.
+            options.AddPolicy(RateLimitPolicies.Ai, http =>
+                RateLimitPartition.GetTokenBucketLimiter(
+                    http.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value ?? http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    _ => new TokenBucketRateLimiterOptions
+                    {
+                        TokenLimit = aiPermitLimit,
+                        TokensPerPeriod = aiPermitLimit,
+                        ReplenishmentPeriod = TimeSpan.FromMinutes(1),
                         QueueLimit = 0,
                     }));
         });

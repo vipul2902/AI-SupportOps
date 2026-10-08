@@ -18,6 +18,12 @@ public static class DependencyInjection
         services.AddScoped<DocumentService>();
         services.AddScoped<DocumentIngestionService>();
         services.AddScoped<KnowledgeSearchService>();
+        services.AddScoped<IRagService, RagService>();
+
+        services.AddOptions<RagOptions>()
+            .Bind(configuration.GetSection(RagOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
         services.AddOptions<IngestionOptions>()
             .Bind(configuration.GetSection(IngestionOptions.SectionName))

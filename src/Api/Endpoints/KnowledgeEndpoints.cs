@@ -13,6 +13,12 @@ internal static class KnowledgeEndpoints
             .WithTags("Knowledge")
             .RequireAuthorization(Policies.Viewer);
 
+        app.MapPost("/api/ask", (AskRequest request, IRagService rag, CancellationToken ct) =>
+                rag.AskAsync(request, ct))
+            .WithTags("Knowledge")
+            .RequireAuthorization(Policies.Viewer)
+            .RequireRateLimiting(RateLimitPolicies.Ai);
+
         return app;
     }
 }

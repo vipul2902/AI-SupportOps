@@ -34,6 +34,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("Database:ApplyMigrationsOnStartup", "false");
         builder.UseSetting("Auth:SigningKey", TestSigningKey);
         builder.UseSetting("RateLimiting:AuthPermitsPerMinute", "10000");
+        builder.UseSetting("RateLimiting:AiRequestsPerMinute", "10000");
+        // Fake embeddings score lower than real ones; tests exercise thresholding with this value.
+        builder.UseSetting("Rag:MinScore", "0.2");
         builder.UseSetting("Storage:Local:RootPath", StorageRoot);
         builder.UseSetting("Ingestion:PollInterval", "00:00:00.100");
         builder.UseSetting("Ai:Provider", "Fake");

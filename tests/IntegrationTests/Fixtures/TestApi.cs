@@ -28,7 +28,7 @@ public static class TestApi
         return await response.ReadAsync<AuthResponse>(HttpStatusCode.OK);
     }
 
-    public static HttpClient CreateClient(this ApiFactory factory, AuthResponse auth)
+    public static HttpClient CreateClient(this Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> factory, AuthResponse auth)
     {
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
