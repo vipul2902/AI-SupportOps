@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="440" viewBox="0 0 960 440" font-family="Segoe UI, Helvetica, Arial, sans-serif" role="img" aria-labelledby="t d">
+  <title id="t">RAG pipeline</title>
+  <desc id="d">Ingestion: upload, extract, normalize, chunk, embed, store in pgvector. Query: rewrite follow-up, embed query, tenant-filtered vector search, threshold, budgeted context, LLM, verify citations, stream answer.</desc>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1f2937"/></marker>
+  </defs>
+  <rect width="960" height="440" fill="#ffffff"/>
+  <g fill="#111827" font-size="18" font-weight="600"><text x="30" y="38">RAG pipeline</text></g>
+  <g fill="#4b5563" font-size="13" font-weight="600">
+    <text x="30" y="78">INGESTION (background worker)</text>
+    <text x="30" y="248">QUERY (per question)</text>
+  </g>
+  <g fill="none" stroke="#1f2937" stroke-width="1.5">
+    <rect x="30" y="92" width="120" height="74" rx="8"/>
+    <rect x="180" y="92" width="120" height="74" rx="8"/>
+    <rect x="330" y="92" width="120" height="74" rx="8"/>
+    <rect x="480" y="92" width="140" height="74" rx="8"/>
+    <rect x="650" y="92" width="120" height="74" rx="8"/>
+    <rect x="800" y="92" width="130" height="74" rx="8"/>
+    <rect x="30" y="262" width="120" height="74" rx="8"/>
+    <rect x="180" y="262" width="120" height="74" rx="8"/>
+    <rect x="330" y="262" width="140" height="74" rx="8"/>
+    <rect x="500" y="262" width="120" height="74" rx="8"/>
+    <rect x="650" y="262" width="120" height="74" rx="8"/>
+    <rect x="800" y="262" width="130" height="74" rx="8"/>
+  </g>
+  <g fill="none" stroke="#1f2937" stroke-width="1.5" marker-end="url(#a)">
+    <line x1="150" y1="129" x2="178" y2="129"/><line x1="300" y1="129" x2="328" y2="129"/>
+    <line x1="450" y1="129" x2="478" y2="129"/><line x1="620" y1="129" x2="648" y2="129"/>
+    <line x1="770" y1="129" x2="798" y2="129"/>
+    <line x1="150" y1="299" x2="178" y2="299"/><line x1="300" y1="299" x2="328" y2="299"/>
+    <line x1="470" y1="299" x2="498" y2="299"/><line x1="620" y1="299" x2="648" y2="299"/>
+    <line x1="770" y1="299" x2="798" y2="299"/>
+    <!-- vector store feeds the search -->
+    <path d="M865,166 L865,206 L400,206 L400,260" stroke-dasharray="5 4"/>
+  </g>
+  <g fill="#111827" font-size="13" text-anchor="middle">
+    <text x="90" y="124" font-weight="600">Upload</text><text x="90" y="142" font-size="11" fill="#4b5563">allowlist + magic</text><text x="90" y="156" font-size="11" fill="#4b5563">bytes, ≤ 20 MB</text>
+    <text x="240" y="124" font-weight="600">Extract</text><text x="240" y="142" font-size="11" fill="#4b5563">PDF per page,</text><text x="240" y="156" font-size="11" fill="#4b5563">DOCX, MD, TXT</text>
+    <text x="390" y="124" font-weight="600">Normalize</text><text x="390" y="142" font-size="11" fill="#4b5563">NFKC, whitespace,</text><text x="390" y="156" font-size="11" fill="#4b5563">hyphenation</text>
+    <text x="550" y="124" font-weight="600">Chunk</text><text x="550" y="142" font-size="11" fill="#4b5563">per heading, ≤ 512 tok,</text><text x="550" y="156" font-size="11" fill="#4b5563">64-token overlap</text>
+    <text x="710" y="124" font-weight="600">Embed</text><text x="710" y="142" font-size="11" fill="#4b5563">batched, with file</text><text x="710" y="156" font-size="11" fill="#4b5563">+ heading header</text>
+    <text x="865" y="124" font-weight="600">pgvector</text><text x="865" y="142" font-size="11" fill="#4b5563">vector(1536),</text><text x="865" y="156" font-size="11" fill="#4b5563">HNSW cosine</text>
+    <text x="90" y="294" font-weight="600">Rewrite</text><text x="90" y="312" font-size="11" fill="#4b5563">follow-up →</text><text x="90" y="326" font-size="11" fill="#4b5563">standalone question</text>
+    <text x="240" y="294" font-weight="600">Embed query</text><text x="240" y="312" font-size="11" fill="#4b5563">Redis cache,</text><text x="240" y="326" font-size="11" fill="#4b5563">tenant-scoped key</text>
+    <text x="400" y="294" font-weight="600">Vector search</text><text x="400" y="312" font-size="11" fill="#4b5563">WHERE tenant_id = @t,</text><text x="400" y="326" font-size="11" fill="#4b5563">top-k, score ≥ min</text>
+    <text x="560" y="294" font-weight="600">Context</text><text x="560" y="312" font-size="11" fill="#4b5563">numbered sources,</text><text x="560" y="326" font-size="11" fill="#4b5563">≤ 3000 tok, escaped</text>
+    <text x="710" y="294" font-weight="600">LLM</text><text x="710" y="312" font-size="11" fill="#4b5563">versioned prompt,</text><text x="710" y="326" font-size="11" fill="#4b5563">temperature 0.1</text>
+    <text x="865" y="294" font-weight="600">Verify + stream</text><text x="865" y="312" font-size="11" fill="#4b5563">check [n] citations,</text><text x="865" y="326" font-size="11" fill="#4b5563">SSE to the browser</text>
+  </g>
+  <g fill="#4b5563" font-size="12">
+    <text x="30" y="382">Nothing relevant above the threshold → answer "I couldn't find this in the knowledge base" without calling the LLM.</text>
+    <text x="30" y="402">Every answer records outcome, citations, model, prompt version, tokens, and latency for evaluation.</text>
+  </g>
+</svg>
