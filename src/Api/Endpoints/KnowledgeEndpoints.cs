@@ -11,13 +11,14 @@ internal static class KnowledgeEndpoints
         app.MapPost("/api/search", (SearchRequest request, KnowledgeSearchService search, CancellationToken ct) =>
                 search.SearchAsync(request, ct))
             .WithTags("Knowledge")
-            .RequireAuthorization(Policies.Viewer);
+            .RequireAuthorization(Policies.Viewer)
+            .RequireRedisRateLimit(RateLimitPolicies.Ai); // each cache miss is a paid embedding call
 
         app.MapPost("/api/ask", (AskRequest request, IRagService rag, CancellationToken ct) =>
                 rag.AskAsync(request, ct))
             .WithTags("Knowledge")
             .RequireAuthorization(Policies.Viewer)
-            .RequireRateLimiting(RateLimitPolicies.Ai);
+            .RequireRedisRateLimit(RateLimitPolicies.Ai);
 
         return app;
     }

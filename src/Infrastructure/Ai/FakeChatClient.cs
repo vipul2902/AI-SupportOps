@@ -20,8 +20,8 @@ public sealed partial class FakeChatClient : IChatClient
         var list = messages.ToList();
         var system = list.FirstOrDefault(m => m.Role == ChatRole.System)?.Text ?? string.Empty;
         var lastUser = list.LastOrDefault(m => m.Role == ChatRole.User)?.Text ?? string.Empty;
-        var text = system.Contains("standalone question", StringComparison.OrdinalIgnoreCase)
-            ? Rewrite(lastUser)
+        var text = system.Contains("standalone question", StringComparison.OrdinalIgnoreCase) ? Rewrite(lastUser)
+            : system.Contains("running summary", StringComparison.OrdinalIgnoreCase) ? Summarize(lastUser)
             : Answer(lastUser);
         var inputChars = list.Sum(m => m.Text.Length);
 
@@ -59,6 +59,17 @@ public sealed partial class FakeChatClient : IChatClient
         var followUp = FollowUp().Match(rewriteRequest) is { Success: true } f ? f.Groups["text"].Value.Trim() : rewriteRequest;
         return string.Join(' ', userTurns.Append(followUp));
     }
+
+    /// <summary>Fake summary: the user's turns from the new messages, appended to the previous summary.</summary>
+    public static string Summarize(string summaryRequest)
+    {
+        var previous = PreviousSummary().Match(summaryRequest) is { Success: true } p ? p.Groups["text"].Value.Trim() : "(none)";
+        var userTurns = string.Join(" | ", UserTurn().Matches(summaryRequest).Select(m => m.Groups["text"].Value.Trim()));
+        return previous == "(none)" ? $"The user asked: {userTurns}" : $"{previous} | {userTurns}";
+    }
+
+    [GeneratedRegex(@"<previous_summary>\s*(?<text>.*?)\s*</previous_summary>", RegexOptions.Singleline)]
+    private static partial Regex PreviousSummary();
 
     [GeneratedRegex(@"^User: (?<text>.+)$", RegexOptions.Multiline)]
     private static partial Regex UserTurn();

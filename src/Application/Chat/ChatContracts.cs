@@ -58,6 +58,6 @@ public sealed record MessageResponse(
     IReadOnlyList<MessageCitation> Citations,
     DateTimeOffset CreatedAt);
 
-public sealed record ConversationDetail(Guid Id, string Title, DateTimeOffset CreatedAt, IReadOnlyList<MessageResponse> Messages);
+public sealed record ConversationDetail(Guid Id, string Title, DateTimeOffset CreatedAt, string? Summary, IReadOnlyList<MessageResponse> Messages);
 
 public sealed record RenameConversationRequest([Required, StringLength(Conversation.TitleMaxLength, MinimumLength = 1)] string Title);

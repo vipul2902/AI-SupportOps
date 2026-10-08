@@ -19,4 +19,11 @@ public sealed class ConversationOptions
 
     [Range(1, 20_000)]
     public int MaxMessageLength { get; set; } = 4000;
+
+    [Required]
+    public string SummaryPromptId { get; set; } = "conversation-summary.v1";
+
+    /// <summary>Summarize once at least this many messages have left the window: one LLM call per batch, not per turn.</summary>
+    [Range(1, 100)]
+    public int SummarizeBatchSize { get; set; } = 6;
 }

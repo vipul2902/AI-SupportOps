@@ -10,7 +10,7 @@
 | Rotation | Every refresh revokes the old token and issues a new one in the same *family* | Limits the window of a stolen token |
 | Reuse detection | Presenting an already-rotated token revokes the whole family | Detects theft: attacker and victim can't both keep refreshing |
 | Login failures | Same message and similar timing for unknown email vs. wrong password | Prevents account enumeration |
-| Rate limiting | Fixed window per client IP on `/api/auth/*` (default 10/min) | Slows brute force and credential stuffing |
+| Rate limiting | Redis fixed window, shared by all instances: per client IP on `/api/auth/*` (10/min); per user on AI endpoints (30/min) | Slows brute force and credential stuffing; caps AI spend per account |
 
 The signing key comes from configuration (`Auth:SigningKey`, ≥ 32 bytes) and is validated at startup; it is never stored in `appsettings*.json`.
 
@@ -55,5 +55,6 @@ Not yet implemented: antivirus scanning (e.g. Microsoft Defender for Storage on 
 ## Known trade-offs
 
 - A removed or demoted user's *access token* stays cryptographically valid for up to 15 minutes. Endpoints that matter re-check membership; a revocation list in Redis is a possible future improvement.
-- The rate limiter is in-memory per instance; a distributed (Redis) limiter is needed when scaling out.
+- Rate limits fail open if Redis is down (availability over strictness).
+- Behind a reverse proxy or load balancer, the client IP must come from `X-Forwarded-For` of a **trusted** proxy only; otherwise all users share the proxy's IP bucket. Configured with the Azure deployment.
 - Invitation tokens are returned in the API response until an email provider is integrated.

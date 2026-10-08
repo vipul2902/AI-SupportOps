@@ -11,6 +11,7 @@ internal sealed class ConversationConfiguration : IEntityTypeConfiguration<Conve
     public void Configure(EntityTypeBuilder<Conversation> builder)
     {
         builder.Property(c => c.Title).HasMaxLength(Conversation.TitleMaxLength).IsRequired();
+        builder.Property(c => c.Summary).HasMaxLength(2000);
 
         // Sidebar query: my conversations, most recent first.
         builder.HasIndex(c => new { c.TenantId, c.UserId, c.LastMessageAt });

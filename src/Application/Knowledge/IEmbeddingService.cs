@@ -11,11 +11,9 @@ public interface IEmbeddingService
 {
     string ModelId { get; }
 
+    /// <summary>Document chunks, in batches. Not cached: chunk text rarely repeats.</summary>
     Task<EmbeddingBatch> EmbedAsync(IReadOnlyList<string> inputs, CancellationToken ct);
-}
 
-public static class EmbeddingServiceExtensions
-{
-    public static async Task<float[]> EmbedQueryAsync(this IEmbeddingService service, string query, CancellationToken ct) =>
-        (await service.EmbedAsync([query], ct)).Vectors[0];
+    /// <summary>A single search query. Cacheable: users ask the same questions repeatedly.</summary>
+    Task<float[]> EmbedQueryAsync(string query, CancellationToken ct);
 }

@@ -112,7 +112,7 @@ Auth model, RBAC rules, and tenant isolation design: [docs/security.md](docs/sec
 - [x] Phase 5 — Embeddings (text-embedding-3-small), pgvector HNSW, tenant-filtered semantic search
 - [x] Phase 6 — RAG: thresholded retrieval, budgeted context, versioned prompts, verified citations, injection defenses
 - [x] Phase 7 — Streaming chat (SSE), persistent conversations, follow-up rewriting, citations
-- [ ] Phase 8 — Conversation memory, summaries, Redis
+- [x] Phase 8 — Memory tiers (window + rolling summary), Redis embedding cache and distributed rate limiting
 - [ ] Phase 9–10 — Support tickets, agent tool calling
 - [ ] Phase 11–12 — AI evaluation, observability
 - [ ] Phase 13+ — React dashboard, CI/CD, Azure deployment

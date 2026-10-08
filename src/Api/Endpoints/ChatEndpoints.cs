@@ -22,7 +22,7 @@ internal static class ChatEndpoints
             })
             .WithTags("Chat")
             .RequireAuthorization(Policies.Viewer)
-            .RequireRateLimiting(RateLimitPolicies.Ai);
+            .RequireRedisRateLimit(RateLimitPolicies.Ai);
 
         var conversations = app.MapGroup("/api/conversations")
             .WithTags("Chat")

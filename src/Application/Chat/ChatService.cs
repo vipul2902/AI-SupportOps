@@ -26,6 +26,7 @@ public sealed partial class ChatService(
     ICurrentUser currentUser,
     IRagService rag,
     QueryRewriter rewriter,
+    ConversationSummarizer summarizer,
     IAiChatService llm,
     ITokenCounter tokenCounter,
     IOptions<ConversationOptions> conversationOptions,
@@ -55,11 +56,18 @@ public sealed partial class ChatService(
 
             var recent = await db.Messages
                 .Where(m => m.ConversationId == conversationId)
+                .Where(m => conversation.SummarizedUntil == null || m.CreatedAt > conversation.SummarizedUntil)
                 .OrderByDescending(m => m.CreatedAt).ThenByDescending(m => m.Id)
                 .Take(settings.HistoryMaxMessages)
                 .ToListAsync(ct);
             recent.Reverse();
             history = HistoryWindow.Select(recent, settings.HistoryMaxMessages, settings.HistoryMaxTokens, tokenCounter);
+            if (conversation.Summary is { } summary)
+            {
+                // Long-range memory first, then the verbatim recent turns.
+                history = [new LlmMessage(LlmRole.User, $"<conversation_summary>\n{summary}\n</conversation_summary>"), .. history];
+            }
+
             conversation.Touch(now);
         }
         else
@@ -183,6 +191,10 @@ public sealed partial class ChatService(
 
         yield return new ChatDoneEvent(saved.Id, analysis.Outcome, analysis.Citations, analysis.InvalidCitationNumbers, preparation.Question,
             model, usage?.InputTokens, usage?.OutputTokens, stopwatch.ElapsedMilliseconds);
+
+        // After "done" has been sent: the user is not waiting on this. Uses its own token because
+        // the client may disconnect as soon as it has the answer.
+        await summarizer.SummarizeIfNeededAsync(turn.Conversation.Id, CancellationToken.None);
     }
 
     /// <summary>

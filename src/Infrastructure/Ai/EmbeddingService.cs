@@ -17,6 +17,9 @@ internal sealed partial class EmbeddingService(
 {
     public string ModelId => modelId;
 
+    public async Task<float[]> EmbedQueryAsync(string query, CancellationToken ct) =>
+        (await EmbedAsync([query], ct)).Vectors[0];
+
     public async Task<EmbeddingBatch> EmbedAsync(IReadOnlyList<string> inputs, CancellationToken ct)
     {
         if (inputs.Count == 0)

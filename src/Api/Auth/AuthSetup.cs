@@ -1,4 +1,3 @@
-using System.Threading.RateLimiting;
 using AISupportOps.Application.Common;
 using AISupportOps.Application.Identity;
 using AISupportOps.Domain.Tenants;
@@ -20,12 +19,6 @@ public static class Policies
     public const string Agent = nameof(TenantRole.Agent);
     public const string Admin = nameof(TenantRole.Admin);
     public const string Owner = nameof(TenantRole.Owner);
-}
-
-public static class RateLimitPolicies
-{
-    public const string Auth = "auth";
-    public const string Ai = "ai";
 }
 
 internal static class AuthSetup
@@ -61,36 +54,6 @@ internal static class AuthSetup
             .AddPolicy(Policies.Agent, p => RequireAtLeast(p, TenantRole.Agent))
             .AddPolicy(Policies.Admin, p => RequireAtLeast(p, TenantRole.Admin))
             .AddPolicy(Policies.Owner, p => RequireAtLeast(p, TenantRole.Owner));
-
-        var authPermitLimit = configuration.GetValue("RateLimiting:AuthPermitsPerMinute", 10);
-        var aiPermitLimit = configuration.GetValue("RateLimiting:AiRequestsPerMinute", 30);
-        services.AddRateLimiter(options =>
-        {
-            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-            // Per client IP: slows credential stuffing and brute force on auth endpoints.
-            // In-memory per instance for now; a Redis-backed limiter is needed once scaled out.
-            options.AddPolicy(RateLimitPolicies.Auth, http =>
-                RateLimitPartition.GetFixedWindowLimiter(
-                    http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                    _ => new FixedWindowRateLimiterOptions
-                    {
-                        PermitLimit = authPermitLimit,
-                        Window = TimeSpan.FromMinutes(1),
-                        QueueLimit = 0,
-                    }));
-
-            // Per user (not IP): LLM calls cost money, so each account gets a budget.
-            options.AddPolicy(RateLimitPolicies.Ai, http =>
-                RateLimitPartition.GetTokenBucketLimiter(
-                    http.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value ?? http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                    _ => new TokenBucketRateLimiterOptions
-                    {
-                        TokenLimit = aiPermitLimit,
-                        TokensPerPeriod = aiPermitLimit,
-                        ReplenishmentPeriod = TimeSpan.FromMinutes(1),
-                        QueueLimit = 0,
-                    }));
-        });
 
         return services;
     }

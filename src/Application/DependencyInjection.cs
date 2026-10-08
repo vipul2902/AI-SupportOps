@@ -21,6 +21,7 @@ public static class DependencyInjection
         services.AddScoped<KnowledgeSearchService>();
         services.AddScoped<IRagService, RagService>();
         services.AddScoped<QueryRewriter>();
+        services.AddScoped<ConversationSummarizer>();
         services.AddScoped<ChatService>();
         services.AddScoped<ConversationService>();
 

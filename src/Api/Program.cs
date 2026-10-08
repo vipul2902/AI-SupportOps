@@ -42,7 +42,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseRateLimiter();
 
 if (app.Configuration.GetValue<bool>("Database:ApplyMigrationsOnStartup"))
 {

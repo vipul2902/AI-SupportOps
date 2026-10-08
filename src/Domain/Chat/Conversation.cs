@@ -27,6 +27,24 @@ public sealed class Conversation : Entity, ITenantOwned
 
     public DateTimeOffset LastMessageAt { get; private set; }
 
+    /// <summary>Running summary of messages that have left the short-term window (long-range memory).</summary>
+    public string? Summary { get; private set; }
+
+    /// <summary>CreatedAt of the newest message folded into <see cref="Summary"/>.</summary>
+    public DateTimeOffset? SummarizedUntil { get; private set; }
+
+    public void UpdateSummary(string summary, DateTimeOffset summarizedUntil)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(summary);
+        if (SummarizedUntil is { } previous && summarizedUntil <= previous)
+        {
+            throw new InvalidOperationException("Summary can only move forward in time.");
+        }
+
+        Summary = summary;
+        SummarizedUntil = summarizedUntil;
+    }
+
     public void Rename(string title)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(title);

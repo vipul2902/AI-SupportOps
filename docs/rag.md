@@ -200,7 +200,40 @@ Answers flow one way, server to client. SSE is plain HTTP: it works through prox
 - Sources are attached **only to the current turn**. Re-sending past sources would multiply cost each turn.
 - Failed messages are excluded; a window never starts with an orphaned assistant reply.
 
-This bounds per-turn cost no matter how long the conversation runs. Long-range memory (summaries, Redis) is Phase 8.
+This bounds per-turn cost no matter how long the conversation runs.
+
+## 5. Memory tiers and Redis (implemented)
+
+| Tier | Where | What | Why there |
+|---|---|---|---|
+| Short-term | Postgres → prompt | Last 10 messages / 2,000 tokens | Verbatim recent context; an indexed query is ~1 ms, so no cache needed |
+| Long-range | `conversations.summary` (Postgres) | Rolling LLM summary of turns that left the window | Durable, part of the conversation's state |
+| Persistent | `messages` (Postgres) | Full transcript, citations, metrics | Source of truth, audit, evaluation |
+
+**Rolling summary.** After a turn's `done` event (so the user never waits), if at least
+`SummarizeBatchSize` (6) messages have left the window, they are folded into the existing summary
+with `conversation-summary.v1`: previous summary + new messages → updated summary (≤150 words).
+Incremental, so cost stays constant per batch rather than growing with the conversation. The
+summary is prepended as `<conversation_summary>` to the history used by both the follow-up rewriter
+and the answer. Summarization failures are logged and retried on the next turn.
+
+### Redis: what it is used for, and what it is not
+
+| Use | Why Redis | Failure mode |
+|---|---|---|
+| **Query-embedding cache** (24 h TTL) | Repeated questions skip a paid API call and ~100–300 ms. Shared by all instances | Fail open: compute the embedding |
+| **Distributed rate limiting** (auth per IP, AI per user) | An in-memory limiter gives each instance its own budget, multiplying the real limit by the instance count | Fail open: allow and log |
+
+Cache keys: `emb:{tenant}:{model}:{sha256(query)}`. The tenant prevents cross-tenant timing
+inference; the model prevents mixing vector spaces; hashing keeps raw queries (which may contain
+customer details) out of Redis keys.
+
+Rate limiting is an atomic Lua script (`INCR` + `PEXPIRE` on first hit): a fixed window that may
+admit up to 2x the limit across a window boundary, which is acceptable for cost and abuse control.
+
+**Deliberately not in Redis:** the history window (Postgres serves it from an index; caching
+would add invalidation bugs for no measurable gain) and the ingestion queue (it must be
+transactional with the document row). Redis holds only data that can be lost without harm.
 
 ### Limitations
 

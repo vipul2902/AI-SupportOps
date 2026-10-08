@@ -6,6 +6,7 @@ using AISupportOps.Application.Ingestion;
 using AISupportOps.Application.Knowledge;
 using AISupportOps.Domain.Documents;
 using AISupportOps.Infrastructure.Ai;
+using AISupportOps.Infrastructure.Caching;
 using AISupportOps.Infrastructure.Identity;
 using AISupportOps.Infrastructure.Ingestion;
 using AISupportOps.Infrastructure.Knowledge;
@@ -18,6 +19,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenAI;
+using StackExchange.Redis;
 
 namespace AISupportOps.Infrastructure;
 
@@ -62,11 +64,21 @@ public static class DependencyInjection
             services.AddHostedService<DocumentIngestionWorker>();
         }
 
+        // One shared, thread-safe multiplexer for the whole process (the documented StackExchange.Redis usage).
+        // AbortOnConnectFail=false: start even if Redis is briefly unavailable; features fail open.
+        var redisOptions = ConfigurationOptions.Parse(redis);
+        redisOptions.AbortOnConnectFail = false;
+        services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisOptions));
+        services.AddStackExchangeRedisCache(o => o.InstanceName = "aisupportops:");
+        services.AddOptions<Microsoft.Extensions.Caching.StackExchangeRedis.RedisCacheOptions>()
+            .Configure<IConnectionMultiplexer>((o, mux) => o.ConnectionMultiplexerFactory = () => Task.FromResult(mux));
+        services.AddSingleton<IRateLimiter, RedisRateLimiter>();
+
         services.AddAi(configuration);
 
         services.AddHealthChecks()
             .AddDbContextCheck<AppDbContext>("postgres", tags: [ReadyTag])
-            .AddRedis(redis, "redis", tags: [ReadyTag]);
+            .AddRedis(sp => sp.GetRequiredService<IConnectionMultiplexer>(), "redis", tags: [ReadyTag]);
 
         return services;
     }
@@ -93,7 +105,7 @@ public static class DependencyInjection
             return client.GetEmbeddingClient(ai.OpenAI.EmbeddingModel).AsIEmbeddingGenerator();
         });
 
-        services.AddSingleton<IEmbeddingService>(sp =>
+        services.AddSingleton(sp =>
         {
             var ai = sp.GetRequiredService<IOptions<AiOptions>>().Value;
             var model = ai.Provider == AiProvider.Fake ? FakeEmbeddingGenerator.ModelId : ai.OpenAI.EmbeddingModel;
@@ -102,6 +114,13 @@ public static class DependencyInjection
                 model,
                 sp.GetRequiredService<ILogger<EmbeddingService>>());
         });
+
+        // Decorator: scoped because cache keys include the request's tenant.
+        services.AddScoped<IEmbeddingService>(sp => new CachingEmbeddingService(
+            sp.GetRequiredService<EmbeddingService>(),
+            sp.GetRequiredService<Microsoft.Extensions.Caching.Distributed.IDistributedCache>(),
+            sp.GetRequiredService<ITenantContext>(),
+            sp.GetRequiredService<ILogger<CachingEmbeddingService>>()));
 
         services.AddSingleton<IChatClient>(sp =>
         {

@@ -10,7 +10,7 @@ internal static class AuthEndpoints
     {
         var group = app.MapGroup("/api/auth")
             .WithTags("Auth")
-            .RequireRateLimiting(RateLimitPolicies.Auth);
+            .RequireRedisRateLimit(RateLimitPolicies.Auth);
 
         group.MapPost("/register", (RegisterRequest request, AuthService auth, CancellationToken ct) =>
                 auth.RegisterAsync(request, ct))

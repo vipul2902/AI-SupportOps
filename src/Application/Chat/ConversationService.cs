@@ -35,7 +35,7 @@ public sealed class ConversationService(IApplicationDbContext db, ICurrentUser c
             .Select(m => new MessageResponse(m.Id, m.Role, m.Content, m.Status, m.Outcome, m.Citations, m.CreatedAt))
             .ToListAsync(ct);
 
-        return new ConversationDetail(conversation.Id, conversation.Title, conversation.CreatedAt, messages);
+        return new ConversationDetail(conversation.Id, conversation.Title, conversation.CreatedAt, conversation.Summary, messages);
     }
 
     public async Task<ConversationSummary> RenameAsync(Guid id, RenameConversationRequest request, CancellationToken ct)
