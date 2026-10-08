@@ -1,0 +1,8 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Domain\AISupportOps.Domain.csproj" />
+  </ItemGroup>
+
+
+</Project>
