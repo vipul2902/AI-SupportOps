@@ -49,6 +49,14 @@ if (app.Environment.IsDevelopment())
 app.UseAuthentication();
 app.UseAuthorization();
 
+// Production runs migrations as a one-shot job with the same image (`--migrate-only`), before any API
+// replica starts, so replicas never race each other to migrate. Development may auto-migrate on startup.
+if (args.Contains("--migrate-only"))
+{
+    await DatabaseMigrator.MigrateAsync(app.Services);
+    return;
+}
+
 if (app.Configuration.GetValue<bool>("Database:ApplyMigrationsOnStartup"))
 {
     await DatabaseMigrator.MigrateAsync(app.Services);

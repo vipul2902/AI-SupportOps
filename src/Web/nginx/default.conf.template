@@ -1,0 +1,67 @@
+# The single public entry point: serves the SPA and reverse-proxies /api to the ASP.NET Core API.
+# Same origin for both, so the browser never needs CORS and the auth cookie stays first-party.
+
+server_tokens off;
+
+upstream api {
+    server ${API_UPSTREAM};
+    keepalive 16;
+}
+
+server {
+    listen 8080;
+    root /usr/share/nginx/html;
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+    gzip_min_length 1024;
+
+    # SPA hardening. The app ships no inline scripts or styles, so 'self' is enough everywhere.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+
+    location = /healthz {
+        access_log off;
+        default_type text/plain;
+        return 200 "ok";
+    }
+
+    # Content-hashed build output: safe to cache for a year; a new build gets new file names.
+    location /assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        try_files $uri =404;
+    }
+
+    location /api/ {
+        proxy_pass http://api;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        # One trusted hop: the API accepts these only from this proxy's network.
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Server-Sent Events: forward each token as it arrives instead of buffering the response.
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 300s;
+
+        # Uploads up to the API's 20 MB document limit (+ multipart overhead).
+        client_max_body_size 21m;
+    }
+
+    # Client-side routes (/chat, /tickets/...) resolve to the SPA shell, which is never cached,
+    # so users always pick up the latest deployment.
+    location / {
+        add_header Cache-Control "no-cache" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        try_files $uri /index.html;
+    }
+}

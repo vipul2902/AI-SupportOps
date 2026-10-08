@@ -63,6 +63,16 @@ dotnet run --project src/Api
 
 In Development the API applies EF Core migrations on startup.
 
+### Production-style stack
+
+```bash
+cp .env.prod.example .env.prod   # real secrets
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+```
+
+nginx serves the React app and proxies `/api` (SSE unbuffered); Postgres and Redis are internal-only;
+migrations run as a one-shot job; containers are non-root and read-only. Details: [docs/deployment.md](docs/deployment.md).
+
 ### Frontend (React)
 
 ```bash
@@ -144,7 +154,8 @@ Auth model, RBAC rules, and tenant isolation design: [docs/security.md](docs/sec
 - [x] Phase 12 — Observability: OpenTelemetry traces/metrics/logs, GenAI spans, Aspire Dashboard
 - [x] Phase 13 — React SaaS dashboard: streaming chat, knowledge base, tickets, evaluations, team
 - [x] Phase 14 — Security hardening: httpOnly refresh cookie, CSRF guard, atomic account lockout, trusted proxy headers, security headers
-- [ ] Phase 15+ — Production Docker, CI/CD, Azure deployment
+- [x] Phase 15 — Production Docker: nginx + SPA image, migration job, hardened containers, internal data network
+- [ ] Phase 16+ — CI/CD, Azure deployment
 
 ## License
 

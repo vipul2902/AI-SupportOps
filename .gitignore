@@ -497,3 +497,4 @@ coverage/
 
 # --- Local uploaded files ---
 data/
+!.env.prod.example

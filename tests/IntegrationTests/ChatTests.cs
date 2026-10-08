@@ -38,6 +38,8 @@ public class ChatTests(ApiFactory factory)
         Assert.Equal("done", events[^1].Type);
         Assert.True(events.Count(e => e.Type == "delta") > 1, "answer should arrive in several deltas");
         var meta = events[0].As<ChatMetaEvent>();
+        // The event type travels in the SSE "event:" field only, never duplicated in the JSON payload.
+        Assert.DoesNotContain(events, e => e.Data.Contains("eventType", StringComparison.OrdinalIgnoreCase));
         var done = events[^1].As<ChatDoneEvent>();
         var streamed = string.Concat(events.Where(e => e.Type == "delta").Select(e => e.As<ChatDeltaEvent>().Text));
 

@@ -52,7 +52,7 @@ internal static class ChatEndpoints
     {
         await foreach (var e in events.WithCancellation(ct))
         {
-            yield return new SseItem<object>(e, e.EventType);
+            yield return new SseItem<object>(e, e.GetEventType());
         }
     }
 }
