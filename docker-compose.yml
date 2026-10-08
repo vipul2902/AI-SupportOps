@@ -41,6 +41,7 @@ services:
       ASPNETCORE_HTTP_PORTS: "8080"
       ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
       ConnectionStrings__Redis: redis:6379
+      Auth__SigningKey: ${JWT_SIGNING_KEY:?set in .env}
     ports:
       - "${API_PORT:-8080}:8080"
     depends_on:

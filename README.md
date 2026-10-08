@@ -42,7 +42,7 @@ Details: [docs/architecture.md](docs/architecture.md)
 Prerequisites: .NET 10 SDK, Docker Desktop.
 
 ```bash
-cp .env.example .env              # set POSTGRES_PASSWORD (and ports if 5432/6379 are taken)
+cp .env.example .env              # set POSTGRES_PASSWORD, JWT_SIGNING_KEY (and ports if 5432/6379 are taken)
 
 # Option A — everything in containers
 docker compose --profile full up -d --build
@@ -53,6 +53,7 @@ docker compose up -d
 dotnet user-secrets --project src/Api set "ConnectionStrings:Postgres" \
   "Host=localhost;Port=5432;Database=aisupportops;Username=aisupportops;Password=<from .env>"
 dotnet user-secrets --project src/Api set "ConnectionStrings:Redis" "localhost:6379"
+dotnet user-secrets --project src/Api set "Auth:SigningKey" "$(openssl rand -base64 48)"
 dotnet run --project src/Api
 ```
 
@@ -67,6 +68,22 @@ See [.env.example](.env.example). Secrets are never committed: Docker reads `.en
 ```bash
 dotnet test                       # integration tests need Docker running
 ```
+
+## API overview
+
+| Endpoint | Access |
+|---|---|
+| `POST /api/auth/register` | Anonymous: creates user + organization (caller becomes Owner) |
+| `POST /api/auth/login`, `/refresh`, `/logout` | Anonymous (rate limited) |
+| `POST /api/auth/accept-invitation` | Anonymous, requires invitation token |
+| `POST /api/auth/switch-tenant` | Any member |
+| `GET /api/me` | Any member |
+| `GET /api/tenant` / `PATCH /api/tenant` | Viewer+ / Admin+ |
+| `GET /api/team/members` | Viewer+ |
+| `PATCH /api/team/members/{id}/role`, `DELETE /api/team/members/{id}` | Admin+ |
+| `GET/POST /api/team/invitations`, `DELETE /api/team/invitations/{id}` | Admin+ |
+
+Auth model, RBAC rules, and tenant isolation design: [docs/security.md](docs/security.md)
 
 ## Health endpoints
 

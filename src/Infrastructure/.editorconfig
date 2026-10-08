@@ -1,0 +1,6 @@
+root = false
+
+# EF Core migrations are generated code; do not analyze them.
+[Persistence/Migrations/*.cs]
+generated_code = true
+dotnet_analyzer_diagnostic.severity = none

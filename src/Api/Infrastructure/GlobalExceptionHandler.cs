@@ -1,10 +1,12 @@
+using AISupportOps.Application.Common;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AISupportOps.Api.Infrastructure;
 
 /// <summary>
-/// Converts unhandled exceptions into RFC 7807 ProblemDetails without leaking internals.
+/// Converts exceptions into RFC 7807 ProblemDetails. Expected <see cref="AppException"/>s
+/// map to 4xx with their (client-safe) message; anything else is a 500 with no internals leaked.
 /// </summary>
 internal sealed partial class GlobalExceptionHandler(
     IProblemDetailsService problemDetails,
@@ -19,17 +21,32 @@ internal sealed partial class GlobalExceptionHandler(
             return true;
         }
 
-        LogUnhandled(logger, exception, httpContext.Request.Method, httpContext.Request.Path);
+        var (status, title) = exception switch
+        {
+            NotFoundException => (StatusCodes.Status404NotFound, "Not found"),
+            ConflictException => (StatusCodes.Status409Conflict, "Conflict"),
+            ForbiddenException => (StatusCodes.Status403Forbidden, "Forbidden"),
+            UnauthorizedException => (StatusCodes.Status401Unauthorized, "Unauthorized"),
+            BusinessRuleException => (StatusCodes.Status422UnprocessableEntity, "Business rule violated"),
+            BadHttpRequestException bad => (bad.StatusCode, "Bad request"),
+            _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred."),
+        };
 
-        httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        if (status >= StatusCodes.Status500InternalServerError)
+        {
+            LogUnhandled(logger, exception, httpContext.Request.Method, httpContext.Request.Path);
+        }
+
+        httpContext.Response.StatusCode = status;
         return await problemDetails.TryWriteAsync(new ProblemDetailsContext
         {
             HttpContext = httpContext,
             Exception = exception,
             ProblemDetails = new ProblemDetails
             {
-                Status = StatusCodes.Status500InternalServerError,
-                Title = "An unexpected error occurred.",
+                Status = status,
+                Title = title,
+                Detail = exception is AppException ? exception.Message : null,
             },
         });
     }

@@ -1,3 +1,4 @@
+using AISupportOps.Application.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
@@ -13,8 +14,14 @@ internal sealed class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<A
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql("Host=design-time-only", npgsql => npgsql.UseVector())
+            .UseSnakeCaseNamingConvention()
             .Options;
 
-        return new AppDbContext(options, TimeProvider.System);
+        return new AppDbContext(options, new NoTenant(), TimeProvider.System);
+    }
+
+    private sealed class NoTenant : ITenantContext
+    {
+        public Guid? TenantId => null;
     }
 }

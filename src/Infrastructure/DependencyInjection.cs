@@ -1,3 +1,6 @@
+using AISupportOps.Application.Common;
+using AISupportOps.Application.Identity;
+using AISupportOps.Infrastructure.Identity;
 using AISupportOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -18,8 +21,17 @@ public static class DependencyInjection
 
         services.AddSingleton(TimeProvider.System);
 
+        services.AddOptions<AuthOptions>()
+            .Bind(configuration.GetSection(AuthOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         services.AddDbContext<AppDbContext>(options =>
-            options.UseNpgsql(postgres, npgsql => npgsql.UseVector()));
+            options.UseNpgsql(postgres, npgsql => npgsql.UseVector()).UseSnakeCaseNamingConvention());
+        services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<AppDbContext>());
+
+        services.AddSingleton<IPasswordHasher, PasswordHasher>();
+        services.AddSingleton<IAccessTokenIssuer, JwtAccessTokenIssuer>();
 
         services.AddHealthChecks()
             .AddDbContextCheck<AppDbContext>("postgres", tags: [ReadyTag])
