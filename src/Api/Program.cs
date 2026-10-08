@@ -60,6 +60,7 @@ app.MapTenantEndpoints();
 app.MapDocumentEndpoints();
 app.MapKnowledgeEndpoints();
 app.MapChatEndpoints();
+app.MapTicketEndpoints();
 
 await app.RunAsync();
 

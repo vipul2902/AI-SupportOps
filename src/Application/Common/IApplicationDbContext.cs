@@ -1,7 +1,9 @@
+using AISupportOps.Domain.Auditing;
 using AISupportOps.Domain.Chat;
 using AISupportOps.Domain.Documents;
 using AISupportOps.Domain.Identity;
 using AISupportOps.Domain.Tenants;
+using AISupportOps.Domain.Tickets;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 
@@ -32,7 +34,16 @@ public interface IApplicationDbContext
 
     DbSet<Message> Messages { get; }
 
+    DbSet<Customer> Customers { get; }
+
+    DbSet<SupportTicket> SupportTickets { get; }
+
+    DbSet<AuditLog> AuditLogs { get; }
+
     ChangeTracker ChangeTracker { get; }
+
+    EntityEntry<TEntity> Entry<TEntity>(TEntity entity)
+        where TEntity : class;
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

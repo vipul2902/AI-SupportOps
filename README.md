@@ -92,6 +92,11 @@ dotnet test                       # integration tests need Docker running
 | `POST /api/ask` (RAG answer with citations, rate limited per user) | Viewer+ |
 | `POST /api/chat` (streaming SSE: meta → delta* → done/error) | Viewer+ |
 | `GET /api/conversations`, `GET/PATCH/DELETE /api/conversations/{id}` (own conversations only) | Viewer+ |
+| `GET /api/tickets?status=&priority=&assignee=me\|unassigned\|{id}&customerId=&search=` | Viewer+ |
+| `GET /api/tickets/{id}`, `GET /api/tickets/number/{n}`, `GET /api/tickets/{id}/history` | Viewer+ |
+| `POST /api/tickets`, `PATCH /api/tickets/{id}` (with optional `expectedVersion`) | Agent+ |
+| `GET /api/customers`, `GET /api/customers/{id}` · `POST /api/customers` | Viewer+ · Agent+ |
+| `GET /api/audit-logs?entityType=&entityId=&actorType=` | Admin+ |
 | `POST /api/documents/{id}/reprocess`, `DELETE /api/documents/{id}` | Admin+ |
 
 Auth model, RBAC rules, and tenant isolation design: [docs/security.md](docs/security.md)
@@ -113,7 +118,8 @@ Auth model, RBAC rules, and tenant isolation design: [docs/security.md](docs/sec
 - [x] Phase 6 — RAG: thresholded retrieval, budgeted context, versioned prompts, verified citations, injection defenses
 - [x] Phase 7 — Streaming chat (SSE), persistent conversations, follow-up rewriting, citations
 - [x] Phase 8 — Memory tiers (window + rolling summary), Redis embedding cache and distributed rate limiting
-- [ ] Phase 9–10 — Support tickets, agent tool calling
+- [x] Phase 9 — Support tickets: workflow state machine, per-tenant numbering, optimistic concurrency, audit log
+- [ ] Phase 10 — Agentic AI with controlled tool calling
 - [ ] Phase 11–12 — AI evaluation, observability
 - [ ] Phase 13+ — React dashboard, CI/CD, Azure deployment
 

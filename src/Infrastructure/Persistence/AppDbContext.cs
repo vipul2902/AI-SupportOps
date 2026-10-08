@@ -1,10 +1,13 @@
 using System.Linq.Expressions;
 using AISupportOps.Application.Common;
+using AISupportOps.Domain.Auditing;
 using AISupportOps.Domain.Chat;
 using AISupportOps.Domain.Common;
 using AISupportOps.Domain.Documents;
 using AISupportOps.Domain.Identity;
 using AISupportOps.Domain.Tenants;
+using AISupportOps.Domain.Tickets;
+using AISupportOps.Infrastructure.Persistence.Configurations;
 using Microsoft.EntityFrameworkCore;
 
 namespace AISupportOps.Infrastructure.Persistence;
@@ -32,6 +35,14 @@ public sealed class AppDbContext(
     public DbSet<Conversation> Conversations => Set<Conversation>();
 
     public DbSet<Message> Messages => Set<Message>();
+
+    public DbSet<Customer> Customers => Set<Customer>();
+
+    public DbSet<SupportTicket> SupportTickets => Set<SupportTicket>();
+
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+
+    internal DbSet<TicketCounter> TicketCounters => Set<TicketCounter>();
 
     /// <summary>
     /// Read by the global query filters on every query. EF Core evaluates it per DbContext

@@ -4,6 +4,7 @@ using AISupportOps.Application.Documents;
 using AISupportOps.Application.Identity;
 using AISupportOps.Application.Ingestion;
 using AISupportOps.Application.Knowledge;
+using AISupportOps.Application.Tickets;
 using AISupportOps.Domain.Documents;
 using AISupportOps.Infrastructure.Ai;
 using AISupportOps.Infrastructure.Caching;
@@ -12,6 +13,7 @@ using AISupportOps.Infrastructure.Ingestion;
 using AISupportOps.Infrastructure.Knowledge;
 using AISupportOps.Infrastructure.Persistence;
 using AISupportOps.Infrastructure.Storage;
+using AISupportOps.Infrastructure.Tickets;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.AI;
@@ -53,6 +55,7 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
         services.AddSingleton<IFileStorage, LocalFileStorage>();
+        services.AddScoped<ITicketNumberGenerator, TicketNumberGenerator>();
 
         services.AddSingleton<ITokenCounter, TiktokenTokenCounter>();
         services.AddSingleton<ITextExtractor>(new PlainTextExtractor(DocumentKind.PlainText));

@@ -1,9 +1,11 @@
+using AISupportOps.Application.Auditing;
 using AISupportOps.Application.Chat;
 using AISupportOps.Application.Documents;
 using AISupportOps.Application.Identity;
 using AISupportOps.Application.Ingestion;
 using AISupportOps.Application.Knowledge;
 using AISupportOps.Application.Tenants;
+using AISupportOps.Application.Tickets;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -24,6 +26,10 @@ public static class DependencyInjection
         services.AddScoped<ConversationSummarizer>();
         services.AddScoped<ChatService>();
         services.AddScoped<ConversationService>();
+        services.AddScoped<AuditTrail>();
+        services.AddScoped<AuditLogService>();
+        services.AddScoped<TicketService>();
+        services.AddScoped<CustomerService>();
 
         services.AddOptions<ConversationOptions>()
             .Bind(configuration.GetSection(ConversationOptions.SectionName))
