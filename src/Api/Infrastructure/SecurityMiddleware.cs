@@ -13,7 +13,12 @@ internal static class SecurityMiddleware
     public static IServiceCollection AddTrustedForwardedHeaders(this IServiceCollection services, IConfiguration configuration)
     {
         var networks = TrustedNetworks(configuration);
-        services.Configure<ForwardedHeadersOptions>(options => ApplyTrustedNetworks(options, networks));
+        var forwardLimit = configuration.GetValue("ForwardedHeaders:ForwardLimit", 1);
+        services.Configure<ForwardedHeadersOptions>(options =>
+        {
+            ApplyTrustedNetworks(options, networks);
+            options.ForwardLimit = forwardLimit;
+        });
         return services;
     }
 
@@ -45,7 +50,6 @@ internal static class SecurityMiddleware
     private static void ApplyTrustedNetworks(ForwardedHeadersOptions options, string[] networks)
     {
         options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-        options.ForwardLimit = 1; // exactly one proxy hop in front of the API
         foreach (var cidr in networks)
         {
             options.KnownIPNetworks.Add(System.Net.IPNetwork.Parse(cidr));

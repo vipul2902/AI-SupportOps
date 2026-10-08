@@ -50,11 +50,7 @@ public static class DependencyInjection
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddSingleton<IAccessTokenIssuer, JwtAccessTokenIssuer>();
 
-        services.AddOptions<LocalFileStorageOptions>()
-            .Bind(configuration.GetSection(LocalFileStorageOptions.SectionName))
-            .ValidateDataAnnotations()
-            .ValidateOnStart();
-        services.AddSingleton<IFileStorage, LocalFileStorage>();
+        services.AddFileStorage(configuration);
         services.AddScoped<ITicketNumberGenerator, TicketNumberGenerator>();
 
         services.AddSingleton<ITokenCounter, TiktokenTokenCounter>();
@@ -85,6 +81,30 @@ public static class DependencyInjection
             .AddRedis(sp => sp.GetRequiredService<IConnectionMultiplexer>(), "redis", tags: [ReadyTag]);
 
         return services;
+    }
+
+    /// <summary>Storage:Provider = Local (single host / development) or AzureBlob (multi-replica production).</summary>
+    private static void AddFileStorage(this IServiceCollection services, IConfiguration configuration)
+    {
+        if (!string.Equals(configuration["Storage:Provider"], "AzureBlob", StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddOptions<LocalFileStorageOptions>()
+                .Bind(configuration.GetSection(LocalFileStorageOptions.SectionName))
+                .ValidateDataAnnotations()
+                .ValidateOnStart();
+            services.AddSingleton<IFileStorage, LocalFileStorage>();
+            return;
+        }
+
+        var blob = configuration.GetSection(AzureBlobStorageOptions.SectionName).Get<AzureBlobStorageOptions>() ?? new();
+        var service = blob switch
+        {
+            // Azure: managed identity (DefaultAzureCredential reads AZURE_CLIENT_ID for a user-assigned identity).
+            { ServiceUri: { } uri } => new Azure.Storage.Blobs.BlobServiceClient(uri, new Azure.Identity.DefaultAzureCredential()),
+            { ConnectionString: { Length: > 0 } cs } => new Azure.Storage.Blobs.BlobServiceClient(cs),
+            _ => throw new InvalidOperationException("Storage:AzureBlob requires ServiceUri (Azure) or ConnectionString (Azurite)."),
+        };
+        services.AddSingleton<IFileStorage>(new AzureBlobFileStorage(service.GetBlobContainerClient(blob.ContainerName)));
     }
 
     private static void AddAi(this IServiceCollection services, IConfiguration configuration)

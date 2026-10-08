@@ -1,0 +1,80 @@
+name: Deploy (Azure)
+
+# Manual, gated deployment of already-published, CI-verified images.
+# Prerequisites (one-time, see docs/deployment.md):
+#   - infra provisioned:   az deployment group create -f infra/main.bicep ...
+#   - OIDC trust:          infra/setup-github-oidc.sh  (no Azure passwords stored in GitHub)
+#   - GitHub environment "production" with variables AZURE_CLIENT_ID, AZURE_TENANT_ID,
+#     AZURE_SUBSCRIPTION_ID, AZURE_RESOURCE_GROUP (and, ideally, required reviewers)
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to deploy (e.g. sha-0022c6c). Must already exist in GHCR."
+        required: true
+
+permissions:
+  contents: read
+  id-token: write # exchange the GitHub OIDC token for a short-lived Azure token
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false # never interrupt a deployment halfway
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    env:
+      RG: ${{ vars.AZURE_RESOURCE_GROUP }}
+      API_IMAGE: ghcr.io/${{ github.repository_owner }}/aisupportops-api:${{ inputs.image_tag }}
+      WEB_IMAGE: ghcr.io/${{ github.repository_owner }}/aisupportops-web:${{ inputs.image_tag }}
+      PREFIX: aiso
+    steps:
+      - name: Validate tag format
+        run: |
+          [[ "${{ inputs.image_tag }}" =~ ^sha-[0-9a-f]{7,40}$ ]] || { echo "::error::Deploy immutable sha-<commit> tags only"; exit 1; }
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # 1) Migrate first, with the new image, before any new code serves traffic.
+      - name: Run database migrations
+        run: |
+          az extension add --name containerapp --upgrade --only-show-errors
+          az containerapp job update -g "$RG" -n "$PREFIX-migrate" --image "$API_IMAGE" --only-show-errors -o none
+          EXECUTION=$(az containerapp job start -g "$RG" -n "$PREFIX-migrate" --query name -o tsv)
+          echo "Migration execution: $EXECUTION"
+          for _ in $(seq 1 60); do
+            STATUS=$(az containerapp job execution show -g "$RG" -n "$PREFIX-migrate" --job-execution-name "$EXECUTION" --query properties.status -o tsv)
+            echo "status=$STATUS"
+            [ "$STATUS" = "Succeeded" ] && exit 0
+            [ "$STATUS" = "Failed" ] && { echo "::error::Migration failed; apps were NOT updated"; exit 1; }
+            sleep 10
+          done
+          echo "::error::Migration timed out"; exit 1
+
+      # 2) Roll out the new revisions (single-revision mode: traffic moves when the new revision is healthy).
+      - name: Update API
+        run: az containerapp update -g "$RG" -n "$PREFIX-api" --image "$API_IMAGE" --only-show-errors -o none
+
+      - name: Update web
+        run: az containerapp update -g "$RG" -n "$PREFIX-web" --image "$WEB_IMAGE" --only-show-errors -o none
+
+      # 3) Smoke test through the public entry point.
+      - name: Smoke test
+        run: |
+          FQDN=$(az containerapp show -g "$RG" -n "$PREFIX-web" --query properties.configuration.ingress.fqdn -o tsv)
+          for _ in $(seq 1 30); do
+            WEB=$(curl -s -o /dev/null -w '%{http_code}' "https://$FQDN/healthz")
+            API=$(curl -s -o /dev/null -w '%{http_code}' "https://$FQDN/api/me")   # 401 = API reachable through nginx
+            echo "web=$WEB api=$API"
+            [ "$WEB" = "200" ] && [ "$API" = "401" ] && { echo "Deployed ${{ inputs.image_tag }} to https://$FQDN" >> "$GITHUB_STEP_SUMMARY"; exit 0; }
+            sleep 10
+          done
+          echo "::error::Smoke test failed"; exit 1

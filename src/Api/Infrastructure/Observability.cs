@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using AISupportOps.Application.Common;
+using Azure.Monitor.OpenTelemetry.Exporter;
 using Npgsql;
 using OpenTelemetry;
 using OpenTelemetry.Logs;
@@ -20,6 +21,9 @@ internal static class Observability
     public static WebApplicationBuilder AddObservability(this WebApplicationBuilder builder)
     {
         var otlpEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
+        // Azure: Application Insights. The exporter-only package sends the same signals our pipeline
+        // already collects, without the distro's extra auto-instrumentation (no duplicate spans).
+        var appInsights = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
         var serviceVersion = typeof(Observability).Assembly.GetName().Version?.ToString() ?? "0.0.0";
 
         // Machine-readable logs in containers; human-readable locally. Scopes carry TraceId/SpanId.
@@ -36,6 +40,10 @@ internal static class Observability
         {
             o.IncludeFormattedMessage = true;
             o.IncludeScopes = true;
+            if (!string.IsNullOrWhiteSpace(appInsights))
+            {
+                o.AddAzureMonitorLogExporter(e => e.ConnectionString = appInsights);
+            }
         });
 
         var otel = builder.Services.AddOpenTelemetry()
@@ -65,6 +73,12 @@ internal static class Observability
         if (!string.IsNullOrWhiteSpace(otlpEndpoint))
         {
             otel.UseOtlpExporter();
+        }
+
+        if (!string.IsNullOrWhiteSpace(appInsights))
+        {
+            otel.WithTracing(t => t.AddAzureMonitorTraceExporter(e => e.ConnectionString = appInsights))
+                .WithMetrics(m => m.AddAzureMonitorMetricExporter(e => e.ConnectionString = appInsights));
         }
 
         return builder;

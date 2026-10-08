@@ -113,6 +113,8 @@ GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on 
 
 CI needs no secrets: tests use the offline Fake AI provider and throwaway containers.
 
+**Deploy** ([`.github/workflows/deploy.yml`](.github/workflows/deploy.yml), manual): GitHub OIDC → Azure (no stored credentials) → run the migration job → roll out API and web revisions → smoke test. Infrastructure is Bicep in [`infra/`](infra/); see [docs/deployment.md](docs/deployment.md#azure).
+
 ## API overview
 
 | Endpoint | Access |
@@ -171,7 +173,8 @@ Agent design and safety controls: [docs/agentic-ai.md](docs/agentic-ai.md)
 - [x] Phase 14 — Security hardening: httpOnly refresh cookie, CSRF guard, atomic account lockout, trusted proxy headers, security headers
 - [x] Phase 15 — Production Docker: nginx + SPA image, migration job, hardened containers, internal data network
 - [x] Phase 16 — CI/CD: GitHub Actions gates (tests, evaluation, audits, secret scan, image builds) and GHCR publishing
-- [ ] Phase 17 — Azure deployment
+- [x] Phase 17 — Azure: Bicep (Container Apps, PostgreSQL + pgvector, Managed Redis, Blob, Key Vault, App Insights), OIDC deploy workflow
+- [ ] Phase 18 — Final hardening, screenshots, portfolio polish
 
 ## License
 

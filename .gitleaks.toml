@@ -11,6 +11,10 @@ regexes = [
   '''integration-tests-signing-key-0123456789abcdef''',
   '''correct-horse-battery(-staple)?''',
   '''replace-with[-a-z0-9]*''',
+  # Azure built-in role definition IDs (public, identical in every tenant; not credentials):
+  # Key Vault Secrets User, Storage Blob Data Contributor.
+  '''4633458b-17de-408a-b874-0445c86b69e6''',
+  '''ba92f5b4-2d11-453d-a403-e96b0029c9fe''',
 ]
 paths = [
   '''\.env\.example$''',

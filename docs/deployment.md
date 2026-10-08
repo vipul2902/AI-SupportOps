@@ -73,4 +73,89 @@ production stack works over plain HTTP.
 
 ## Azure
 
-_Phase 17._
+### Architecture
+
+```
+Internet ──HTTPS──► Container Apps ingress ──► web (nginx + SPA)            [external]
+                                                  │  /api  (Host: aiso-api)
+                                                  ▼
+                                               api (ASP.NET Core + ingestion worker) [internal only]
+                                                  │ managed identity
+          ┌───────────────┬──────────────┬────────┴────────┬──────────────────┐
+          ▼               ▼              ▼                 ▼                  ▼
+   PostgreSQL Flex   Azure Managed   Blob Storage      Key Vault        App Insights
+   (pgvector)        Redis           (documents)       (secrets)        (OTel export)
+
+Container Apps Job "migrate" (same API image, --migrate-only) runs before each rollout.
+```
+
+### Why each service
+
+| Need | Service | Why this one |
+|---|---|---|
+| Run the containers | **Azure Container Apps** | Runs the existing images unchanged; managed HTTPS ingress, revisions, autoscaling, internal service discovery; no cluster to operate (AKS would be overkill for two services) |
+| One-shot migrations | **Container Apps Job** | Same image, `--migrate-only`; deploy waits for success before rolling out |
+| Database + vectors | **PostgreSQL Flexible Server** | Managed Postgres with the `vector` extension (allow-listed via `azure.extensions`): no separate vector database to operate |
+| Cache / rate limits | **Azure Managed Redis** | Managed, TLS. Chosen over Azure Cache for Redis because, to my knowledge, Microsoft has announced that service's retirement in favour of Managed Redis. **Verify current guidance before deploying.** |
+| Document files | **Blob Storage** | Replicas don't share a disk and revisions discard container filesystems; blobs are shared and durable. Shared keys disabled: access via managed identity only |
+| Secrets | **Key Vault** (RBAC) | Container Apps reference secrets by URI through the managed identity; no secret values in app settings or the repo |
+| Telemetry | **Application Insights** (workspace-based) | Receives the app's OpenTelemetry traces/metrics/logs via the Azure Monitor exporter (enabled by `APPLICATIONINSIGHTS_CONNECTION_STRING`) |
+| Network | **VNet** with a delegated `/23` subnet | Gives the API a known CIDR to trust for `X-Forwarded-For`; foundation for private endpoints later |
+
+Not used, deliberately: AKS (operational overhead), Azure Container Registry (CI already publishes
+public images to GHCR), Front Door/WAF (worth adding for a real customer launch), Azure OpenAI
+(supported by configuration via `Ai:OpenAI:Endpoint`, not required).
+
+### Deploy
+
+```bash
+# 1. Provision (once, or when infrastructure changes). Use an immutable sha-<commit> tag from CI.
+az group create -n rg-aisupportops -l <region>
+az deployment group what-if -g rg-aisupportops -f infra/main.bicep -p infra/main.parameters.json \
+  -p apiImage=ghcr.io/vipul2902/aisupportops-api:sha-XXXXXXX webImage=ghcr.io/vipul2902/aisupportops-web:sha-XXXXXXX \
+     postgresAdminPassword="$(openssl rand -base64 32)" jwtSigningKey="$(openssl rand -base64 48)" openAiApiKey="<key>"
+az deployment group create  ...same arguments...          # outputs webUrl
+
+# 2. Allow GitHub Actions to deploy without stored passwords (OIDC):
+./infra/setup-github-oidc.sh <subscription-id> rg-aisupportops
+#    then add the printed variables to the GitHub "production" environment.
+
+# 3. Each release: Actions > "Deploy (Azure)" > Run workflow > image_tag = sha-XXXXXXX
+#    migrate job (must succeed) → update api → update web → smoke test (/healthz 200, /api/me 401)
+```
+
+The deploying identity needs **Owner** or **User Access Administrator** on the resource group for the
+initial provisioning (it creates role assignments). The GitHub OIDC identity only gets Contributor.
+
+### Cost
+
+Billable resources. I have **not** verified current prices; use the
+[Azure Pricing Calculator](https://azure.microsoft.com/pricing/calculator/) for your region. Main drivers:
+
+- **API replica kept at `minReplicas: 1`** (1 vCPU / 2 GiB, always on: the ingestion worker runs inside
+  it). The web app (0.25 vCPU) is also always on.
+- **PostgreSQL Flexible Server** Burstable B1ms + 32 GB storage.
+- **Azure Managed Redis** smallest tier (Balanced_B0).
+- Usage-based and usually small at demo scale: Log Analytics/App Insights ingestion, Blob storage, Key Vault operations.
+- **OpenAI usage** is billed separately by OpenAI per token.
+
+To pause spending, delete the resource group: `az group delete -n rg-aisupportops`.
+
+### Verification status (be honest about what is proven)
+
+| Item | Status |
+|---|---|
+| Bicep: types, API versions, property names | Verified offline: Bicep 0.48.1 compiles 24 resources with zero warnings |
+| Workflows and setup script | Verified: actionlint + shellcheck clean |
+| Blob storage, Azure Monitor exporter wiring, nginx `Host`/`X-Forwarded-Proto` changes | Verified locally (Azurite tests; production compose stack) |
+| PostgreSQL 17 availability in your region | **Not verified**: `what-if` / deploy will tell; set `postgresVersion` if needed |
+| Azure Managed Redis API/SKU acceptance | **Not verified against Azure**: offline type-check only |
+| `ForwardedHeaders:ForwardLimit=2` through ingress → nginx → ingress | **Not verified on Azure**: after deploying, confirm the API logs the real client IP (it drives per-IP rate limits) |
+| End-to-end deployment | **Not performed**: requires an Azure subscription and creates billable resources |
+
+### Hardening next
+
+- Private endpoints / VNet integration for PostgreSQL, Redis, Storage, Key Vault (remove the public Postgres endpoint).
+- Azure Front Door with WAF in front of the web app; custom domain + managed certificate.
+- Entra ID authentication for PostgreSQL (no password) and Redis.
+- Separate identities for the migration job (DDL rights) and the API (DML only).

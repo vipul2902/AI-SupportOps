@@ -1,0 +1,11 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "namePrefix": { "value": "aiso" },
+    "apiImage": { "value": "ghcr.io/vipul2902/aisupportops-api:latest" },
+    "webImage": { "value": "ghcr.io/vipul2902/aisupportops-web:latest" },
+    "aiProvider": { "value": "OpenAI" },
+    "openAiChatModel": { "value": "gpt-4o-mini" }
+  }
+}
