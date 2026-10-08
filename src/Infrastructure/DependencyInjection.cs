@@ -1,7 +1,10 @@
 using AISupportOps.Application.Common;
 using AISupportOps.Application.Documents;
 using AISupportOps.Application.Identity;
+using AISupportOps.Application.Ingestion;
+using AISupportOps.Domain.Documents;
 using AISupportOps.Infrastructure.Identity;
+using AISupportOps.Infrastructure.Ingestion;
 using AISupportOps.Infrastructure.Persistence;
 using AISupportOps.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
@@ -40,6 +43,16 @@ public static class DependencyInjection
             .ValidateDataAnnotations()
             .ValidateOnStart();
         services.AddSingleton<IFileStorage, LocalFileStorage>();
+
+        services.AddSingleton<ITokenCounter, TiktokenTokenCounter>();
+        services.AddSingleton<ITextExtractor>(new PlainTextExtractor(DocumentKind.PlainText));
+        services.AddSingleton<ITextExtractor>(new PlainTextExtractor(DocumentKind.Markdown));
+        services.AddSingleton<ITextExtractor, PdfTextExtractor>();
+        services.AddSingleton<ITextExtractor, DocxTextExtractor>();
+        if (configuration.GetValue($"{IngestionOptions.SectionName}:{nameof(IngestionOptions.WorkerEnabled)}", true))
+        {
+            services.AddHostedService<DocumentIngestionWorker>();
+        }
 
         services.AddHealthChecks()
             .AddDbContextCheck<AppDbContext>("postgres", tags: [ReadyTag])

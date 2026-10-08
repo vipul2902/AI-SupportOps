@@ -77,14 +77,48 @@ public sealed class Document : Entity, ITenantOwned
 
     public DateTimeOffset? ProcessedAt { get; private set; }
 
-    public void MarkProcessing()
+    /// <summary>Number of processing attempts since the last (re)queue. Bounds retries of poison documents.</summary>
+    public int ProcessingAttempts { get; private set; }
+
+    /// <summary>
+    /// Called by the ingestion worker when it claims the document. Allowed from Uploaded, or from
+    /// Processing when a previous worker's lease expired (the worker crashed mid-processing).
+    /// </summary>
+    public void BeginProcessingAttempt()
     {
-        if (Status is not (DocumentStatus.Uploaded or DocumentStatus.Failed))
+        if (Status is not (DocumentStatus.Uploaded or DocumentStatus.Processing))
         {
             throw new InvalidOperationException($"Cannot start processing a document in status {Status}.");
         }
 
         Status = DocumentStatus.Processing;
+        ProcessingAttempts++;
+        Error = null;
+    }
+
+    /// <summary>Returns a document to the queue after a transient failure, keeping the attempt count.</summary>
+    public void ReleaseForRetry()
+    {
+        if (Status != DocumentStatus.Processing)
+        {
+            throw new InvalidOperationException($"Cannot release a document in status {Status}.");
+        }
+
+        Status = DocumentStatus.Uploaded;
+    }
+
+    /// <summary>Puts a failed or processed document back in the queue (retry, or re-index after pipeline changes).</summary>
+    public void Requeue()
+    {
+        if (Status is not (DocumentStatus.Failed or DocumentStatus.Processed))
+        {
+            throw new InvalidOperationException($"Cannot requeue a document in status {Status}.");
+        }
+
+        Status = DocumentStatus.Uploaded;
+        ProcessingAttempts = 0;
+        ChunkCount = 0;
+        ProcessedAt = null;
         Error = null;
     }
 

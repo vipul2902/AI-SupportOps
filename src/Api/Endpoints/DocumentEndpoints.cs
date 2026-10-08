@@ -37,6 +37,14 @@ internal static class DocumentEndpoints
             })
             .RequireAuthorization(Policies.Viewer);
 
+        group.MapGet("/{id:guid}/chunks", (Guid id, DocumentService documents, CancellationToken ct, int page = 1, int pageSize = 20) =>
+                documents.ListChunksAsync(id, page, pageSize, ct))
+            .RequireAuthorization(Policies.Viewer);
+
+        group.MapPost("/{id:guid}/reprocess", async (Guid id, DocumentService documents, CancellationToken ct) =>
+                Results.Accepted($"/api/documents/{id}", await documents.ReprocessAsync(id, ct)))
+            .RequireAuthorization(Policies.Admin);
+
         group.MapDelete("/{id:guid}", async (Guid id, DocumentService documents, CancellationToken ct) =>
             {
                 await documents.DeleteAsync(id, ct);

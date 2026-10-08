@@ -110,6 +110,38 @@ public sealed partial class DocumentService(
         return new DocumentContent(stream, document.FileName, document.ContentType);
     }
 
+    /// <summary>Retry a failed document or re-index a processed one.</summary>
+    public async Task<DocumentResponse> ReprocessAsync(Guid id, CancellationToken ct)
+    {
+        var document = await FindAsync(id, ct);
+        if (document.Status is not (DocumentStatus.Failed or DocumentStatus.Processed))
+        {
+            throw new ConflictException($"Document is currently {document.Status} and cannot be requeued.");
+        }
+
+        document.Requeue();
+        await db.SaveChangesAsync(ct);
+        return ToResponse(document);
+    }
+
+    public async Task<PagedResponse<DocumentChunkResponse>> ListChunksAsync(Guid id, int page, int pageSize, CancellationToken ct)
+    {
+        await FindAsync(id, ct); // 404 for unknown or other-tenant documents
+        page = Math.Max(page, 1);
+        pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
+
+        var query = db.DocumentChunks.AsNoTracking().Where(c => c.DocumentId == id);
+        var total = await query.CountAsync(ct);
+        var items = await query
+            .OrderBy(c => c.Index)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(c => new DocumentChunkResponse(c.Id, c.Index, c.Content, c.TokenCount, c.PageNumber, c.Heading))
+            .ToListAsync(ct);
+
+        return new PagedResponse<DocumentChunkResponse>(items, page, pageSize, total);
+    }
+
     public async Task DeleteAsync(Guid id, CancellationToken ct)
     {
         var document = await FindAsync(id, ct);

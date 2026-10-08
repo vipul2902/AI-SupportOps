@@ -17,4 +17,6 @@ public sealed record DocumentResponse(
 
 public sealed record PagedResponse<T>(IReadOnlyList<T> Items, int Page, int PageSize, int TotalCount);
 
+public sealed record DocumentChunkResponse(Guid Id, int Index, string Content, int TokenCount, int? PageNumber, string? Heading);
+
 public sealed record DocumentContent(Stream Content, string FileName, string ContentType);

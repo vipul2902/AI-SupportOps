@@ -33,6 +33,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("Auth:SigningKey", TestSigningKey);
         builder.UseSetting("RateLimiting:AuthPermitsPerMinute", "10000");
         builder.UseSetting("Storage:Local:RootPath", StorageRoot);
+        builder.UseSetting("Ingestion:PollInterval", "00:00:00.100");
         builder.UseSetting("Documents:MaxFileSizeBytes", MaxUploadBytes.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 

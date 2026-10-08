@@ -84,7 +84,8 @@ dotnet test                       # integration tests need Docker running
 | `GET/POST /api/team/invitations`, `DELETE /api/team/invitations/{id}` | Admin+ |
 | `POST /api/documents` (multipart `file`) | Agent+ |
 | `GET /api/documents?status=&page=&pageSize=`, `GET /api/documents/{id}`, `GET /api/documents/{id}/content` | Viewer+ |
-| `DELETE /api/documents/{id}` | Admin+ |
+| `GET /api/documents/{id}/chunks` | Viewer+ |
+| `POST /api/documents/{id}/reprocess`, `DELETE /api/documents/{id}` | Admin+ |
 
 Auth model, RBAC rules, and tenant isolation design: [docs/security.md](docs/security.md)
 
@@ -100,7 +101,7 @@ Auth model, RBAC rules, and tenant isolation design: [docs/security.md](docs/sec
 - [x] Phase 1 — Solution, Docker, PostgreSQL + pgvector, Redis, health checks
 - [ ] Phase 2 — Authentication, organizations, multi-tenancy, RBAC
 - [x] Phase 3 — Document upload, validation, storage
-- [ ] Phase 4 — Document ingestion pipeline (extraction, chunking, background processing)
+- [x] Phase 4 — Ingestion pipeline: background worker, PDF/DOCX/text extraction, token-aware chunking ([docs/rag.md](docs/rag.md))
 - [ ] Phase 5–6 — Embeddings, vector search, RAG
 - [ ] Phase 7–8 — Streaming chat, citations, conversation memory
 - [ ] Phase 9–10 — Support tickets, agent tool calling

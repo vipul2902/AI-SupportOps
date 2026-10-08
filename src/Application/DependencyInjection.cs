@@ -1,5 +1,6 @@
 using AISupportOps.Application.Documents;
 using AISupportOps.Application.Identity;
+using AISupportOps.Application.Ingestion;
 using AISupportOps.Application.Tenants;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,6 +15,12 @@ public static class DependencyInjection
         services.AddScoped<TeamService>();
         services.AddScoped<TenantService>();
         services.AddScoped<DocumentService>();
+        services.AddScoped<DocumentIngestionService>();
+
+        services.AddOptions<IngestionOptions>()
+            .Bind(configuration.GetSection(IngestionOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
         services.AddOptions<DocumentOptions>()
             .Bind(configuration.GetSection(DocumentOptions.SectionName))

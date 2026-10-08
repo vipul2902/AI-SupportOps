@@ -29,7 +29,7 @@ public class DocumentTests
         var doc = NewDocument();
         var now = DateTimeOffset.UtcNow;
 
-        doc.MarkProcessing();
+        doc.BeginProcessingAttempt();
         doc.MarkProcessed(12, now);
 
         Assert.Equal(DocumentStatus.Processed, doc.Status);
@@ -38,16 +38,28 @@ public class DocumentTests
     }
 
     [Fact]
-    public void Failed_document_can_be_retried_and_error_is_cleared()
+    public void Failed_document_can_be_requeued_which_resets_attempts_and_error()
     {
         var doc = NewDocument();
-        doc.MarkProcessing();
+        doc.BeginProcessingAttempt();
         doc.MarkFailed("extraction failed");
 
-        doc.MarkProcessing();
+        doc.Requeue();
 
-        Assert.Equal(DocumentStatus.Processing, doc.Status);
+        Assert.Equal(DocumentStatus.Uploaded, doc.Status);
+        Assert.Equal(0, doc.ProcessingAttempts);
         Assert.Null(doc.Error);
+    }
+
+    [Fact]
+    public void Expired_lease_allows_reclaiming_a_processing_document_and_counts_attempts()
+    {
+        var doc = NewDocument();
+        doc.BeginProcessingAttempt();
+
+        doc.BeginProcessingAttempt();
+
+        Assert.Equal(2, doc.ProcessingAttempts);
     }
 
     [Fact]
@@ -56,8 +68,10 @@ public class DocumentTests
         var doc = NewDocument();
 
         Assert.Throws<InvalidOperationException>(() => doc.MarkProcessed(1, DateTimeOffset.UtcNow));
-        doc.MarkProcessing();
-        Assert.Throws<InvalidOperationException>(doc.MarkProcessing);
+        Assert.Throws<InvalidOperationException>(doc.Requeue);
+        doc.BeginProcessingAttempt();
+        doc.MarkProcessed(1, DateTimeOffset.UtcNow);
+        Assert.Throws<InvalidOperationException>(doc.BeginProcessingAttempt);
     }
 
     private static Document NewDocument() =>

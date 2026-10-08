@@ -26,6 +26,8 @@ public sealed class AppDbContext(
 
     public DbSet<Document> Documents => Set<Document>();
 
+    public DbSet<DocumentChunk> DocumentChunks => Set<DocumentChunk>();
+
     /// <summary>
     /// Read by the global query filters on every query. EF Core evaluates it per DbContext
     /// instance (i.e. per request). Guid.Empty matches no rows, so "no tenant" fails closed.

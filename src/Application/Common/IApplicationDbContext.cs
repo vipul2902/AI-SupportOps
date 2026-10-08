@@ -2,6 +2,7 @@ using AISupportOps.Domain.Documents;
 using AISupportOps.Domain.Identity;
 using AISupportOps.Domain.Tenants;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace AISupportOps.Application.Common;
 
@@ -23,6 +24,10 @@ public interface IApplicationDbContext
     DbSet<Invitation> Invitations { get; }
 
     DbSet<Document> Documents { get; }
+
+    DbSet<DocumentChunk> DocumentChunks { get; }
+
+    ChangeTracker ChangeTracker { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
