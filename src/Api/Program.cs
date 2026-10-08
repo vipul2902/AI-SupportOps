@@ -61,6 +61,7 @@ app.MapDocumentEndpoints();
 app.MapKnowledgeEndpoints();
 app.MapChatEndpoints();
 app.MapTicketEndpoints();
+app.MapAgentEndpoints();
 
 await app.RunAsync();
 

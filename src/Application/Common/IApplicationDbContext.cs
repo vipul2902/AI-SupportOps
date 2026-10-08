@@ -1,3 +1,4 @@
+using AISupportOps.Domain.Agents;
 using AISupportOps.Domain.Auditing;
 using AISupportOps.Domain.Chat;
 using AISupportOps.Domain.Documents;
@@ -39,6 +40,8 @@ public interface IApplicationDbContext
     DbSet<SupportTicket> SupportTickets { get; }
 
     DbSet<AuditLog> AuditLogs { get; }
+
+    DbSet<ToolExecution> ToolExecutions { get; }
 
     ChangeTracker ChangeTracker { get; }
 

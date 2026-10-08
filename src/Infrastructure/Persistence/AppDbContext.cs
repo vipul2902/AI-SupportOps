@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using AISupportOps.Application.Common;
+using AISupportOps.Domain.Agents;
 using AISupportOps.Domain.Auditing;
 using AISupportOps.Domain.Chat;
 using AISupportOps.Domain.Common;
@@ -41,6 +42,8 @@ public sealed class AppDbContext(
     public DbSet<SupportTicket> SupportTickets => Set<SupportTicket>();
 
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+
+    public DbSet<ToolExecution> ToolExecutions => Set<ToolExecution>();
 
     internal DbSet<TicketCounter> TicketCounters => Set<TicketCounter>();
 

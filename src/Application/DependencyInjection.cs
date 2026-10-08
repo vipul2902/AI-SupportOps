@@ -1,3 +1,5 @@
+using AISupportOps.Application.Agents;
+using AISupportOps.Application.Agents.Tools;
 using AISupportOps.Application.Auditing;
 using AISupportOps.Application.Chat;
 using AISupportOps.Application.Documents;
@@ -30,6 +32,20 @@ public static class DependencyInjection
         services.AddScoped<AuditLogService>();
         services.AddScoped<TicketService>();
         services.AddScoped<CustomerService>();
+
+        // Agent: register a tool here and it is available (subject to its MinimumRole); nothing else changes.
+        services.AddScoped<IAgentTool, SearchKnowledgeBaseTool>();
+        services.AddScoped<IAgentTool, GetSupportTicketTool>();
+        services.AddScoped<IAgentTool, CreateSupportTicketTool>();
+        services.AddScoped<IAgentTool, UpdateSupportTicketTool>();
+        services.AddScoped<IAgentTool, GetCustomerInformationTool>();
+        services.AddScoped<ToolRegistry>();
+        services.AddScoped<ToolExecutor>();
+        services.AddScoped<AgentService>();
+        services.AddOptions<AgentOptions>()
+            .Bind(configuration.GetSection(AgentOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
         services.AddOptions<ConversationOptions>()
             .Bind(configuration.GetSection(ConversationOptions.SectionName))

@@ -139,7 +139,7 @@ public static class DependencyInjection
             return client.GetChatClient(ai.OpenAI.ChatModel).AsIChatClient();
         });
 
-        services.AddSingleton<IAiChatService>(sp =>
+        services.AddSingleton(sp =>
         {
             var ai = sp.GetRequiredService<IOptions<AiOptions>>().Value;
             var model = ai.Provider == AiProvider.Fake ? FakeChatClient.ModelId : ai.OpenAI.ChatModel;
@@ -149,6 +149,8 @@ public static class DependencyInjection
                 ai.OpenAI.RequestTimeout,
                 sp.GetRequiredService<ILogger<AiChatService>>());
         });
+        services.AddSingleton<IAiChatService>(sp => sp.GetRequiredService<AiChatService>());
+        services.AddSingleton<IAiToolChatService>(sp => sp.GetRequiredService<AiChatService>());
 
         services.AddScoped<IRetrievalService, PgvectorRetrievalService>();
     }

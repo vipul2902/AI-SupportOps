@@ -97,6 +97,9 @@ dotnet test                       # integration tests need Docker running
 | `POST /api/tickets`, `PATCH /api/tickets/{id}` (with optional `expectedVersion`) | Agent+ |
 | `GET /api/customers`, `GET /api/customers/{id}` · `POST /api/customers` | Viewer+ · Agent+ |
 | `GET /api/audit-logs?entityType=&entityId=&actorType=` | Admin+ |
+| `POST /api/agent` (AI agent with role-filtered, validated, audited tool calls) | Viewer+ (tools depend on role) |
+
+Agent design and safety controls: [docs/agentic-ai.md](docs/agentic-ai.md)
 | `POST /api/documents/{id}/reprocess`, `DELETE /api/documents/{id}` | Admin+ |
 
 Auth model, RBAC rules, and tenant isolation design: [docs/security.md](docs/security.md)
@@ -119,7 +122,7 @@ Auth model, RBAC rules, and tenant isolation design: [docs/security.md](docs/sec
 - [x] Phase 7 — Streaming chat (SSE), persistent conversations, follow-up rewriting, citations
 - [x] Phase 8 — Memory tiers (window + rolling summary), Redis embedding cache and distributed rate limiting
 - [x] Phase 9 — Support tickets: workflow state machine, per-tenant numbering, optimistic concurrency, audit log
-- [ ] Phase 10 — Agentic AI with controlled tool calling
+- [x] Phase 10 — Agentic AI: declaration-only tools, role-filtered toolsets, schema validation, budgets, tool execution log
 - [ ] Phase 11–12 — AI evaluation, observability
 - [ ] Phase 13+ — React dashboard, CI/CD, Azure deployment
 
