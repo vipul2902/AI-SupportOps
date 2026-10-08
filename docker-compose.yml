@@ -42,6 +42,8 @@ services:
       ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
       ConnectionStrings__Redis: redis:6379
       Auth__SigningKey: ${JWT_SIGNING_KEY:?set in .env}
+      Ai__Provider: ${AI_PROVIDER:-Fake}
+      Ai__OpenAI__ApiKey: ${OPENAI_API_KEY:-}
     volumes:
       - uploads:/app/data/uploads
     ports:

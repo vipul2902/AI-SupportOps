@@ -4,11 +4,17 @@ namespace AISupportOps.Domain.Documents;
 
 /// <summary>
 /// A retrieval unit: a passage of a document small enough to embed and to place in an LLM
-/// prompt, with the metadata needed to cite it (page, heading). Embeddings are added in Phase 5.
+/// prompt, with the metadata needed to cite it (page, heading) and its embedding for semantic search.
 /// </summary>
 public sealed class DocumentChunk : Entity, ITenantOwned
 {
     public const int HeadingMaxLength = 300;
+
+    /// <summary>
+    /// Vector size of the embedding column. Fixed by the schema (vector(1536)); matches
+    /// OpenAI text-embedding-3-small. Changing models with a different size needs a migration + re-index.
+    /// </summary>
+    public const int EmbeddingDimensions = 1536;
 
     private DocumentChunk()
     {
@@ -45,4 +51,23 @@ public sealed class DocumentChunk : Entity, ITenantOwned
 
     /// <summary>Nearest preceding section heading (Markdown/DOCX), used for citations and context.</summary>
     public string? Heading { get; private set; }
+
+    /// <summary>Semantic vector of the chunk; null until embedded.</summary>
+    public float[]? Embedding { get; private set; }
+
+    /// <summary>Model that produced <see cref="Embedding"/>. Vectors from different models are not comparable.</summary>
+    public string? EmbeddingModel { get; private set; }
+
+    public void SetEmbedding(float[] embedding, string model)
+    {
+        ArgumentNullException.ThrowIfNull(embedding);
+        ArgumentException.ThrowIfNullOrWhiteSpace(model);
+        if (embedding.Length != EmbeddingDimensions)
+        {
+            throw new ArgumentException($"Expected {EmbeddingDimensions} dimensions but got {embedding.Length}.", nameof(embedding));
+        }
+
+        Embedding = embedding;
+        EmbeddingModel = model;
+    }
 }

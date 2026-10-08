@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using AISupportOps.Application.Common;
 using AISupportOps.Application.Documents;
+using AISupportOps.Application.Knowledge;
 using AISupportOps.Domain.Documents;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -19,6 +20,7 @@ public sealed partial class DocumentIngestionService(
     IFileStorage storage,
     IEnumerable<ITextExtractor> extractors,
     ITokenCounter tokenCounter,
+    IEmbeddingService embeddingService,
     IOptions<IngestionOptions> options,
     TimeProvider time,
     ILogger<DocumentIngestionService> logger)
@@ -42,14 +44,16 @@ public sealed partial class DocumentIngestionService(
 
             var existing = await db.DocumentChunks.Where(c => c.DocumentId == document.Id).ToListAsync(ct);
             db.DocumentChunks.RemoveRange(existing);
-            db.DocumentChunks.AddRange(chunks.Select((c, i) =>
-                new DocumentChunk(document.TenantId, document.Id, i, c.Content, c.TokenCount, c.PageNumber, c.Heading)));
+            var entities = chunks.Select((c, i) =>
+                new DocumentChunk(document.TenantId, document.Id, i, c.Content, c.TokenCount, c.PageNumber, c.Heading)).ToList();
+            var embeddingTokens = await EmbedAsync(document, entities, settings.EmbeddingBatchSize, ct);
+            db.DocumentChunks.AddRange(entities);
 
             document.MarkProcessed(chunks.Count, time.GetUtcNow());
             await db.SaveChangesAsync(ct);
 
             var totalTokens = chunks.Sum(c => c.TokenCount);
-            LogProcessed(logger, document.Id, document.TenantId, chunks.Count, totalTokens, stopwatch.ElapsedMilliseconds);
+            LogProcessed(logger, document.Id, document.TenantId, chunks.Count, totalTokens, embeddingTokens, stopwatch.ElapsedMilliseconds);
         }
         catch (DocumentExtractionException ex)
         {
@@ -87,6 +91,35 @@ public sealed partial class DocumentIngestionService(
         }
     }
 
+    /// <summary>
+    /// Embeds chunks in batches. The embedded text is prefixed with the document name and section
+    /// heading ("contextual chunk header"): a chunk saying "Click Reset" is far easier to match to
+    /// "how do I reset my password" when it is known to come from "Account security". The stored
+    /// content stays unprefixed.
+    /// </summary>
+    private async Task<long> EmbedAsync(Document document, List<DocumentChunk> chunks, int batchSize, CancellationToken ct)
+    {
+        long tokens = 0;
+        foreach (var batch in chunks.Chunk(batchSize))
+        {
+            var inputs = batch.Select(c => ContextualText(document.FileName, c)).ToList();
+            var result = await embeddingService.EmbedAsync(inputs, ct);
+            for (var i = 0; i < batch.Length; i++)
+            {
+                batch[i].SetEmbedding(result.Vectors[i], embeddingService.ModelId);
+            }
+
+            tokens += result.InputTokens ?? 0;
+        }
+
+        return tokens;
+    }
+
+    public static string ContextualText(string fileName, DocumentChunk chunk) =>
+        chunk.Heading is null
+            ? $"{fileName}\n\n{chunk.Content}"
+            : $"{fileName} > {chunk.Heading}\n\n{chunk.Content}";
+
     private async Task<List<TextChunk>> ExtractAndChunkAsync(Document document, IngestionOptions settings, CancellationToken ct)
     {
         var extractor = extractors.FirstOrDefault(e => e.Kind == document.Kind)
@@ -117,8 +150,8 @@ public sealed partial class DocumentIngestionService(
         return chunker.Chunk(sections, extractor.EmitsMarkdownHeadings).ToList();
     }
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Document {DocumentId} (tenant {TenantId}) processed: {ChunkCount} chunks, {TokenCount} tokens in {ElapsedMs} ms")]
-    private static partial void LogProcessed(ILogger logger, Guid documentId, Guid tenantId, int chunkCount, int tokenCount, long elapsedMs);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Document {DocumentId} (tenant {TenantId}) processed: {ChunkCount} chunks, {TokenCount} tokens, {EmbeddingTokens} embedding tokens billed, in {ElapsedMs} ms")]
+    private static partial void LogProcessed(ILogger logger, Guid documentId, Guid tenantId, int chunkCount, int tokenCount, long embeddingTokens, long elapsedMs);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Document {DocumentId} failed permanently: {Reason}")]
     private static partial void LogPermanentFailure(ILogger logger, Guid documentId, string reason);

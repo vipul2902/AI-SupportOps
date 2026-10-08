@@ -2,14 +2,21 @@ using AISupportOps.Application.Common;
 using AISupportOps.Application.Documents;
 using AISupportOps.Application.Identity;
 using AISupportOps.Application.Ingestion;
+using AISupportOps.Application.Knowledge;
 using AISupportOps.Domain.Documents;
+using AISupportOps.Infrastructure.Ai;
 using AISupportOps.Infrastructure.Identity;
 using AISupportOps.Infrastructure.Ingestion;
+using AISupportOps.Infrastructure.Knowledge;
 using AISupportOps.Infrastructure.Persistence;
 using AISupportOps.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using OpenAI;
 
 namespace AISupportOps.Infrastructure;
 
@@ -54,11 +61,48 @@ public static class DependencyInjection
             services.AddHostedService<DocumentIngestionWorker>();
         }
 
+        services.AddAi(configuration);
+
         services.AddHealthChecks()
             .AddDbContextCheck<AppDbContext>("postgres", tags: [ReadyTag])
             .AddRedis(redis, "redis", tags: [ReadyTag]);
 
         return services;
+    }
+
+    private static void AddAi(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<AiOptions>()
+            .Bind(configuration.GetSection(AiOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddOptions<RetrievalOptions>().Bind(configuration.GetSection(RetrievalOptions.SectionName));
+
+        services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(sp =>
+        {
+            var ai = sp.GetRequiredService<IOptions<AiOptions>>().Value;
+            if (ai.Provider == AiProvider.Fake)
+            {
+                return new FakeEmbeddingGenerator();
+            }
+
+            var client = new OpenAIClient(
+                new System.ClientModel.ApiKeyCredential(ai.OpenAI.ApiKey!),
+                new OpenAIClientOptions { Endpoint = ai.OpenAI.Endpoint });
+            return client.GetEmbeddingClient(ai.OpenAI.EmbeddingModel).AsIEmbeddingGenerator();
+        });
+
+        services.AddSingleton<IEmbeddingService>(sp =>
+        {
+            var ai = sp.GetRequiredService<IOptions<AiOptions>>().Value;
+            var model = ai.Provider == AiProvider.Fake ? FakeEmbeddingGenerator.ModelId : ai.OpenAI.EmbeddingModel;
+            return new EmbeddingService(
+                sp.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>(),
+                model,
+                sp.GetRequiredService<ILogger<EmbeddingService>>());
+        });
+
+        services.AddScoped<IRetrievalService, PgvectorRetrievalService>();
     }
 
     private static string RequireConnectionString(IConfiguration configuration, string name)

@@ -30,6 +30,10 @@ public sealed class IngestionOptions
     [Range(0, 1000)]
     public int ChunkOverlapTokens { get; set; } = 64;
 
+    /// <summary>Chunks per embedding API call. Batching cuts per-request overhead; providers cap batch size.</summary>
+    [Range(1, 2048)]
+    public int EmbeddingBatchSize { get; set; } = 64;
+
     /// <summary>Guards against decompression bombs (DOCX is a ZIP) and pathological files.</summary>
     [Range(1000, 50_000_000)]
     public int MaxExtractedCharacters { get; set; } = 5_000_000;

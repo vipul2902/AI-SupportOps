@@ -54,6 +54,9 @@ dotnet user-secrets --project src/Api set "ConnectionStrings:Postgres" \
   "Host=localhost;Port=5432;Database=aisupportops;Username=aisupportops;Password=<from .env>"
 dotnet user-secrets --project src/Api set "ConnectionStrings:Redis" "localhost:6379"
 dotnet user-secrets --project src/Api set "Auth:SigningKey" "$(openssl rand -base64 48)"
+# Optional: real embeddings (Development defaults to the offline Fake provider)
+dotnet user-secrets --project src/Api set "Ai:Provider" "OpenAI"
+dotnet user-secrets --project src/Api set "Ai:OpenAI:ApiKey" "<your key>"
 dotnet run --project src/Api
 ```
 
@@ -85,6 +88,7 @@ dotnet test                       # integration tests need Docker running
 | `POST /api/documents` (multipart `file`) | Agent+ |
 | `GET /api/documents?status=&page=&pageSize=`, `GET /api/documents/{id}`, `GET /api/documents/{id}/content` | Viewer+ |
 | `GET /api/documents/{id}/chunks` | Viewer+ |
+| `POST /api/search` (semantic search, tenant-scoped) | Viewer+ |
 | `POST /api/documents/{id}/reprocess`, `DELETE /api/documents/{id}` | Admin+ |
 
 Auth model, RBAC rules, and tenant isolation design: [docs/security.md](docs/security.md)
@@ -102,7 +106,8 @@ Auth model, RBAC rules, and tenant isolation design: [docs/security.md](docs/sec
 - [ ] Phase 2 — Authentication, organizations, multi-tenancy, RBAC
 - [x] Phase 3 — Document upload, validation, storage
 - [x] Phase 4 — Ingestion pipeline: background worker, PDF/DOCX/text extraction, token-aware chunking ([docs/rag.md](docs/rag.md))
-- [ ] Phase 5–6 — Embeddings, vector search, RAG
+- [x] Phase 5 — Embeddings (text-embedding-3-small), pgvector HNSW, tenant-filtered semantic search
+- [ ] Phase 6 — RAG retrieval pipeline
 - [ ] Phase 7–8 — Streaming chat, citations, conversation memory
 - [ ] Phase 9–10 — Support tickets, agent tool calling
 - [ ] Phase 11–12 — AI evaluation, observability

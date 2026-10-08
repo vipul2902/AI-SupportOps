@@ -20,7 +20,9 @@ Upload ──► documents (status = Uploaded) + file storage
               │
         chunk     paragraphs → sentences → words, packed to 512 tokens, 64-token overlap
               │
-        store     document_chunks (replaces previous chunks in one transaction)
+        embed     batches of 64, text = "file > heading\n\ncontent" (contextual header)
+              │
+        store     document_chunks + vector(1536) (replaces previous chunks in one transaction)
               ▼
         status = Processed (chunk_count)  |  Failed (safe error message)
 ```
@@ -62,9 +64,63 @@ ingestion moves into its own service or throughput needs exceed polling.
 - PDF tables and multi-column layouts are extracted in reading order but lose structure.
 - Headings are detected for Markdown and DOCX styles, not inferred from PDF font sizes.
 
-## 2. Embeddings and vector search
+## 2. Embeddings and vector search (implemented)
 
-_Phase 5._
+### Model and metric
+
+| Choice | Value | Why |
+|---|---|---|
+| Model | `text-embedding-3-small` | Strong retrieval quality per dollar; `-large` is several times more expensive per token (see current [OpenAI pricing](https://openai.com/api/pricing/)) for modest gains on typical support content |
+| Dimensions | 1536 (`vector(1536)`) | Model default; fixed by the schema. A different size needs a migration and full re-index |
+| Metric | Cosine distance (`<=>`) | OpenAI vectors are unit-normalized, so cosine ranks identically to dot product and is model-agnostic |
+| Index | HNSW (`vector_cosine_ops`, m=16, ef_construction=64) | Better recall/latency than IVFFlat, no training step, handles continuous inserts. Cost: memory and slower builds |
+
+Every chunk records its `embedding_model`; search only compares vectors from the active model,
+so switching models never mixes incompatible vector spaces (re-index via `/reprocess`).
+
+**Contextual chunk headers.** The embedded text is `"{file} > {heading}\n\n{content}"` while the
+stored content stays clean. A chunk that just says "click Reset" becomes findable for "reset my
+password" because its section is "Account security".
+
+### The query
+
+```sql
+SELECT ..., 1 - (c.embedding <=> @q) AS score
+FROM document_chunks c JOIN documents d ON d.id = c.document_id
+WHERE c.tenant_id = @tenant AND d.tenant_id = @tenant      -- explicit, never trusted to a filter alone
+  AND d.status = 'Processed' AND c.embedding_model = @model
+  AND (cardinality(@docIds) = 0 OR c.document_id = ANY(@docIds))
+ORDER BY c.embedding <=> @q                                -- must match the index expression
+LIMIT @k
+```
+
+Raw SQL is deliberate: the tenant predicate is visible and reviewable, and the `ORDER BY` matches
+the HNSW index exactly. The tenant ID comes from the token-derived tenant context, never from input.
+
+### Filtered vector search (the subtle part)
+
+HNSW finds the `ef_search` nearest candidates **first** and applies `WHERE` **afterwards**. In a
+shared index, a small tenant's chunks may not be among the global nearest candidates, so a naive
+query can return fewer than `k` rows, or none. Mitigations used:
+
+- `hnsw.iterative_scan = relaxed_order` (pgvector 0.8+): keep walking the graph until enough rows pass the filter.
+- `hnsw.ef_search = 100` (default 40): a wider candidate list.
+- The planner may skip HNSW entirely for a selective tenant filter, using the `(tenant_id, …)`
+  B-tree and an exact sort. For small tenants that is both faster and exact.
+
+At larger scale: per-tenant partial indexes for big tenants, or table partitioning by tenant.
+
+### Search API
+
+`POST /api/search` `{ "query", "topK" (1–20), "documentIds"?, "minScore"? }` → ranked chunks
+with `fileName`, `pageNumber`, `heading`, `score`. POST keeps customer queries out of URLs and access logs.
+
+### Providers
+
+`Ai:Provider = OpenAI | Fake` via Microsoft.Extensions.AI (`IEmbeddingGenerator`), so Azure OpenAI is a configuration change.
+`Fake` is a deterministic feature-hashing embedder: it matches shared words, not meaning. It is
+used by tests and keyless local development. Production configuration fails at startup
+if `Provider=OpenAI` and no key is set.
 
 ## 3. Retrieval and answer generation
 

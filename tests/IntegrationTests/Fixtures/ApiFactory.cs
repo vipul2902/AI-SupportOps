@@ -1,6 +1,8 @@
+using AISupportOps.Application.Common;
 using AISupportOps.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Testcontainers.PostgreSql;
 using Testcontainers.Redis;
 
@@ -34,13 +36,27 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("RateLimiting:AuthPermitsPerMinute", "10000");
         builder.UseSetting("Storage:Local:RootPath", StorageRoot);
         builder.UseSetting("Ingestion:PollInterval", "00:00:00.100");
+        builder.UseSetting("Ai:Provider", "Fake");
         builder.UseSetting("Documents:MaxFileSizeBytes", MaxUploadBytes.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
     public async Task InitializeAsync()
     {
         await Task.WhenAll(_postgres.StartAsync(), _redis.StartAsync());
-        await DatabaseMigrator.MigrateAsync(Services);
+
+        // Migrate BEFORE the host starts (touching Services starts it), so hosted background
+        // workers never poll a database without tables. Mirrors production: migrate, then deploy.
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql(_postgres.GetConnectionString(), o => o.UseVector())
+            .UseSnakeCaseNamingConvention()
+            .Options;
+        await using var db = new AppDbContext(options, new NoTenant(), TimeProvider.System);
+        await db.Database.MigrateAsync();
+    }
+
+    private sealed class NoTenant : ITenantContext
+    {
+        public Guid? TenantId => null;
     }
 
     public new async Task DisposeAsync()

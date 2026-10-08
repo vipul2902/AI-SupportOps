@@ -59,6 +59,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 app.MapAuthEndpoints();
 app.MapTenantEndpoints();
 app.MapDocumentEndpoints();
+app.MapKnowledgeEndpoints();
 
 await app.RunAsync();
 
