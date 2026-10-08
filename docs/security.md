@@ -7,10 +7,13 @@
 | Passwords | PBKDF2-HMAC-SHA512 via ASP.NET Core Identity's `PasswordHasher` (salted, versioned) | Vetted implementation; deliberately slow to resist offline cracking |
 | Access token | JWT, HS256, **15 min**, claims `sub`, `tid` (tenant), `role` | Stateless validation on every request; short life bounds stale roles |
 | Refresh token | 256-bit random opaque string, **only SHA-256 hash stored**, 14 days | DB leak does not yield usable tokens |
+| Browser storage of refresh token | `HttpOnly; Secure; SameSite=Strict; Path=/api/auth` cookie, removed from the JSON body (opt-in via `X-Auth-Mode: cookie`) | Script, including injected script, can never read it |
+| CSRF on cookie refresh | Cookie honoured **only** with the custom `X-Auth-Mode` header; no CORS policy exists to allow it cross-site; SameSite=Strict | A cross-site page cannot send the header, so it cannot use the cookie |
 | Rotation | Every refresh revokes the old token and issues a new one in the same *family* | Limits the window of a stolen token |
 | Reuse detection | Presenting an already-rotated token revokes the whole family | Detects theft: attacker and victim can't both keep refreshing |
 | Login failures | Same message and similar timing for unknown email vs. wrong password | Prevents account enumeration |
 | Rate limiting | Redis fixed window, shared by all instances: per client IP on `/api/auth/*` (10/min); per user on AI endpoints (30/min) | Slows brute force and credential stuffing; caps AI spend per account |
+| Account lockout | 5 attempts per account per 15 min, reserved **atomically before** the password check (Lua `INCR`+`PEXPIRE`); applies to unknown emails identically; reset on success | Stops password spraying across many IPs; parallel requests can't race past it; can't enumerate accounts |
 
 The signing key comes from configuration (`Auth:SigningKey`, ≥ 32 bytes) and is validated at startup; it is never stored in `appsettings*.json`.
 
@@ -52,11 +55,21 @@ Phase 5 extends this to vector search: every similarity query is tenant-filtered
 
 Not yet implemented: antivirus scanning (e.g. Microsoft Defender for Storage on Azure Blob) and deep validation of PDF/DOCX structure, which happens during extraction in the ingestion pipeline.
 
+## Transport and headers
+
+- **Trusted forwarded headers.** `X-Forwarded-For`/`-Proto` are honoured only from loopback and
+  `ForwardedHeaders:KnownNetworks` (the proxy/ingress CIDRs), one hop. Spoofed headers from clients are
+  ignored. Outside Development, the API **refuses to start** unless proxy networks are configured or
+  `ForwardedHeaders:NoProxy=true` is set; otherwise every user would share the proxy's IP rate-limit bucket.
+- **Response headers** on every response (including errors): `X-Content-Type-Options: nosniff`,
+  `X-Frame-Options: DENY`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'` (the API
+  serves only JSON and downloads), `Referrer-Policy: no-referrer`, `Permissions-Policy`, COOP. HSTS is sent
+  over HTTPS outside Development.
+
 ## Frontend
 
-- **Access token in memory only**; refresh token in `localStorage` so sessions survive reloads. Trade-off:
-  script injected via XSS could read the refresh token. The stronger design is an `httpOnly`,
-  `SameSite=Strict` refresh cookie set by the API (planned hardening).
+- **No tokens in browser storage.** The access token lives in memory; the refresh token only in the
+  httpOnly cookie. A page reload restores the session by calling `/api/auth/refresh`.
 - **Single-flight refresh**: concurrent 401s share one refresh call. Refresh tokens rotate and reuse
   revokes the whole session, so parallel refreshes would otherwise log the user out.
 - **Model output is untrusted**: Markdown is rendered with `react-markdown` (no raw HTML); external links
@@ -67,6 +80,7 @@ Not yet implemented: antivirus scanning (e.g. Microsoft Defender for Storage on 
 ## Known trade-offs
 
 - A removed or demoted user's *access token* stays cryptographically valid for up to 15 minutes. Endpoints that matter re-check membership; a revocation list in Redis is a possible future improvement.
-- Rate limits fail open if Redis is down (availability over strictness).
-- Behind a reverse proxy or load balancer, the client IP must come from `X-Forwarded-For` of a **trusted** proxy only; otherwise all users share the proxy's IP bucket. Configured with the Azure deployment.
+- Rate limits and account lockout fail open if Redis is down (availability over strictness).
+- Account lockout can be abused to lock a known user out for 15 minutes (targeted denial of service). Accepted: the window is short; CAPTCHA or step-up challenges would be the next step.
+- No password reset or MFA yet (both are product features for a later iteration).
 - Invitation tokens are returned in the API response until an email provider is integrated.

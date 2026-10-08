@@ -76,6 +76,7 @@ public static class DependencyInjection
         services.AddOptions<Microsoft.Extensions.Caching.StackExchangeRedis.RedisCacheOptions>()
             .Configure<IConnectionMultiplexer>((o, mux) => o.ConnectionMultiplexerFactory = () => Task.FromResult(mux));
         services.AddSingleton<IRateLimiter, RedisRateLimiter>();
+        services.AddSingleton<ILoginThrottle, RedisLoginThrottle>();
 
         services.AddAi(configuration);
 

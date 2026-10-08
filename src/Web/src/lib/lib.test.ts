@@ -73,7 +73,7 @@ describe('API client', () => {
     expect(results.every(r => r.ok)).toBe(true)
     // Rotating refresh tokens: a second, parallel refresh with the same token would revoke the session.
     expect(refreshCalls).toBe(1)
-    expect(tokens.refresh).toBe('refresh-2')
+    expect(tokens.access).toBe('access-2')
     expect(fetchMock).toHaveBeenCalledTimes(7) // 3 failures + 1 refresh + 3 retries
   })
 
@@ -85,7 +85,7 @@ describe('API client', () => {
 
     await expect(apiFetch('/api/me')).rejects.toBeInstanceOf(ApiError)
     expect(ended).toHaveBeenCalledOnce()
-    expect(tokens.refresh).toBeNull()
+    expect(tokens.access).toBeNull()
   })
 
   it('surfaces ProblemDetails and validation messages', async () => {
@@ -98,10 +98,24 @@ describe('API client', () => {
     expect(error.message).toBe('Password must be at least 12 characters.')
   })
 
-  it('does not refresh without a stored refresh token', async () => {
-    const fetchMock = vi.spyOn(globalThis, 'fetch')
-    expect(await refreshSession()).toBe(false)
-    expect(fetchMock).not.toHaveBeenCalled()
+  it('refreshes via the httpOnly cookie: opt-in header, no token in JavaScript', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({ ...auth(3), refreshToken: '' }))
+
+    expect(await refreshSession()).toBe(true)
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('/api/auth/refresh')
+    expect(new Headers(init?.headers).get('X-Auth-Mode')).toBe('cookie')
+    expect(init?.body).toBeUndefined()
+    expect(init?.credentials).toBe('same-origin')
+    expect(localStorage.length).toBe(0)
+  })
+
+  it('does not retry a failed sign-in as an expired session', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({ detail: 'Invalid email or password.' }, { status: 401 }))
+
+    await expect(apiFetch('/api/auth/login', { method: 'POST', body: '{}' })).rejects.toThrow('Invalid email or password.')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })
 

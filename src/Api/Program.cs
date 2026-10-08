@@ -30,9 +30,14 @@ builder.Services.Configure<FormOptions>(o => o.MultipartBodyLengthLimit = maxUpl
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = maxUploadBytes + (1024 * 1024));
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApiAuth(builder.Configuration);
+builder.Services.AddTrustedForwardedHeaders(builder.Configuration);
+SecurityMiddleware.ValidateForwardedHeadersConfiguration(builder.Configuration, builder.Environment);
 
 var app = builder.Build();
 
+// First: everything after this sees the real client IP and scheme.
+app.UseForwardedHeaders();
+app.UseSecurityHeaders(app.Environment);
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 

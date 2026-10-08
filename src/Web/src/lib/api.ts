@@ -17,46 +17,36 @@ export class ApiError extends Error {
   }
 }
 
-// ---- token storage ----
-// Access token: memory only (short-lived, never persisted). Refresh token: localStorage so a reload
-// keeps the session. Trade-off: readable by injected script (XSS). The stronger alternative is an
-// httpOnly SameSite cookie set by the API; documented in docs/security.md.
-const REFRESH_KEY = 'aiso.refresh'
+/**
+ * Session tokens.
+ * - Access token: memory only, short-lived (15 min).
+ * - Refresh token: never touched by JavaScript. The API keeps it in an HttpOnly, Secure,
+ *   SameSite=Strict cookie scoped to /api/auth, which script (including injected script) cannot read.
+ * Every auth call opts into that mode with the X-Auth-Mode header, which also makes the cookie
+ * CSRF-safe: a cross-site page cannot send a custom header without a CORS preflight the API never allows.
+ */
+export const AUTH_MODE_HEADERS = { 'X-Auth-Mode': 'cookie' } as const
+
 let accessToken: string | null = null
 let onSessionEnded: (() => void) | null = null
 
 export const tokens = {
   get access() { return accessToken },
-  get refresh() {
-    try { return localStorage.getItem(REFRESH_KEY) } catch { return null }
-  },
-  set(auth: AuthResponse) {
-    accessToken = auth.accessToken
-    try { localStorage.setItem(REFRESH_KEY, auth.refreshToken) } catch { /* storage unavailable */ }
-  },
-  clear() {
-    accessToken = null
-    try { localStorage.removeItem(REFRESH_KEY) } catch { /* ignore */ }
-  },
+  set(auth: AuthResponse) { accessToken = auth.accessToken },
+  clear() { accessToken = null },
   onSessionEnded(handler: () => void) { onSessionEnded = handler },
 }
 
 // ---- refresh (single-flight) ----
 // Several requests can fail with 401 at once when the access token expires. Refresh tokens rotate and
-// the API revokes the whole session if a rotated token is reused, so N parallel refreshes would log
-// the user out. All callers therefore await the same in-flight refresh.
+// the API revokes the whole session if a rotated token is reused, so N parallel refreshes would log the
+// user out. All callers therefore await the same in-flight refresh.
 let refreshing: Promise<boolean> | null = null
 
 export function refreshSession(): Promise<boolean> {
   refreshing ??= (async () => {
-    const refreshToken = tokens.refresh
-    if (!refreshToken) return false
     try {
-      const response = await fetch('/api/auth/refresh', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken }),
-      })
+      const response = await fetch('/api/auth/refresh', { method: 'POST', headers: AUTH_MODE_HEADERS, credentials: 'same-origin' })
       if (!response.ok) {
         tokens.clear()
         return false
@@ -77,14 +67,16 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
   const send = () => {
     const headers = new Headers(init.headers)
     if (tokens.access) headers.set('Authorization', `Bearer ${tokens.access}`)
+    if (path.startsWith('/api/auth/')) Object.entries(AUTH_MODE_HEADERS).forEach(([k, v]) => headers.set(k, v))
     if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
       headers.set('Content-Type', 'application/json')
     }
-    return fetch(path, { ...init, headers })
+    return fetch(path, { ...init, headers, credentials: 'same-origin' })
   }
 
   let response = await send()
-  if (response.status === 401 && tokens.refresh) {
+  // Only retry requests that were authenticated: a 401 from sign-in itself means wrong credentials.
+  if (response.status === 401 && tokens.access) {
     if (await refreshSession()) {
       response = await send()
     } else {

@@ -32,11 +32,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('anonymous')
   }, [queryClient])
 
-  // On load: a stored refresh token means a previous session; exchange it for an access token.
+  // On load: if the httpOnly refresh cookie exists, the API exchanges it for an access token.
   useEffect(() => {
     tokens.onSessionEnded(endSession)
     void (async () => {
-      if (tokens.refresh && (await refreshSession())) {
+      if (await refreshSession()) {
         try {
           await loadMe()
           return
@@ -64,10 +64,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     switchTenant: async tenantId =>
       start(await api<AuthResponse>('/api/auth/switch-tenant', { method: 'POST', body: json({ tenantId }) })),
     logout: async () => {
-      const refreshToken = tokens.refresh
-      if (refreshToken) {
-        try { await api('/api/auth/logout', { method: 'POST', body: json({ refreshToken }) }) } catch { /* best effort */ }
-      }
+      // Revokes the session server-side and clears the httpOnly cookie.
+      try { await api('/api/auth/logout', { method: 'POST' }) } catch { /* best effort */ }
       endSession()
     },
   }), [status, me, start, endSession])

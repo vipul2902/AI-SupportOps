@@ -15,6 +15,7 @@ public sealed class AuthService(
     IApplicationDbContext db,
     IPasswordHasher passwordHasher,
     IAccessTokenIssuer accessTokenIssuer,
+    ILoginThrottle loginThrottle,
     ITenantScope tenantScope,
     IOptions<AuthOptions> options,
     TimeProvider time)
@@ -54,13 +55,19 @@ public sealed class AuthService(
     public async Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken ct)
     {
         var normalizedEmail = User.NormalizeEmail(request.Email);
+        // Reserve the attempt atomically BEFORE the slow password check (no parallel-request bypass).
+        if (!await loginThrottle.TryReserveAttemptAsync(normalizedEmail, ct))
+        {
+            throw new AccountLockedException();
+        }
+
         var user = await db.Users.SingleOrDefaultAsync(u => u.NormalizedEmail == normalizedEmail, ct);
 
         if (user is null)
         {
             var dummy = new User("timing@invalid", "timing");
             dummy.SetPasswordHash(s_timingDummyHash ??= passwordHasher.Hash(dummy, SecureToken.Create()));
-            passwordHasher.Verify(dummy, request.Password);
+            passwordHasher.Verify(dummy, request.Password); // unknown emails used an attempt too: no enumeration
             throw new UnauthorizedException(InvalidCredentials);
         }
 
@@ -68,6 +75,8 @@ public sealed class AuthService(
         {
             throw new UnauthorizedException(InvalidCredentials);
         }
+
+        await loginThrottle.ResetAsync(normalizedEmail, ct);
 
         var memberships = MembershipsOf(user.Id);
         var membership = request.TenantId is { } tenantId
@@ -81,6 +90,11 @@ public sealed class AuthService(
 
     public async Task<AuthResponse> RefreshAsync(RefreshRequest request, CancellationToken ct)
     {
+        if (string.IsNullOrWhiteSpace(request.RefreshToken))
+        {
+            throw new UnauthorizedException(InvalidRefreshToken);
+        }
+
         var now = time.GetUtcNow();
         var hash = SecureToken.Hash(request.RefreshToken);
         var token = await db.RefreshTokens.SingleOrDefaultAsync(t => t.TokenHash == hash, ct)
@@ -114,6 +128,11 @@ public sealed class AuthService(
 
     public async Task LogoutAsync(RefreshRequest request, CancellationToken ct)
     {
+        if (string.IsNullOrWhiteSpace(request.RefreshToken))
+        {
+            return;
+        }
+
         var hash = SecureToken.Hash(request.RefreshToken);
         var token = await db.RefreshTokens.SingleOrDefaultAsync(t => t.TokenHash == hash, ct);
         if (token is not null)

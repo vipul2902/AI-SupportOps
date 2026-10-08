@@ -143,7 +143,8 @@ Auth model, RBAC rules, and tenant isolation design: [docs/security.md](docs/sec
 - [x] Phase 11 — AI evaluation: labelled dataset, retrieval/citation/abstention metrics, LLM-judge groundedness, online metrics, feedback, CI quality gate ([docs/evaluation.md](docs/evaluation.md))
 - [x] Phase 12 — Observability: OpenTelemetry traces/metrics/logs, GenAI spans, Aspire Dashboard
 - [x] Phase 13 — React SaaS dashboard: streaming chat, knowledge base, tickets, evaluations, team
-- [ ] Phase 14+ — Hardening, CI/CD, Azure deployment
+- [x] Phase 14 — Security hardening: httpOnly refresh cookie, CSRF guard, atomic account lockout, trusted proxy headers, security headers
+- [ ] Phase 15+ — Production Docker, CI/CD, Azure deployment
 
 ## License
 

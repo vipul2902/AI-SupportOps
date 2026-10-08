@@ -21,7 +21,8 @@ public sealed record LoginRequest(
     [Required] string Password,
     Guid? TenantId);
 
-public sealed record RefreshRequest([Required] string RefreshToken);
+/// <summary>Body is optional for browsers: in cookie mode the token arrives as an httpOnly cookie.</summary>
+public sealed record RefreshRequest(string? RefreshToken);
 
 public sealed record SwitchTenantRequest([Required] Guid TenantId);
 
