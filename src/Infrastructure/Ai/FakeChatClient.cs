@@ -26,6 +26,7 @@ public sealed partial class FakeChatClient : IChatClient
         var system = list.FirstOrDefault(m => m.Role == ChatRole.System)?.Text ?? string.Empty;
         var lastUser = list.LastOrDefault(m => m.Role == ChatRole.User)?.Text ?? string.Empty;
         var text = system.Contains("standalone question", StringComparison.OrdinalIgnoreCase) ? Rewrite(lastUser)
+            : system.Contains("grade whether an answer is grounded", StringComparison.OrdinalIgnoreCase) ? Judge(lastUser)
             : system.Contains("running summary", StringComparison.OrdinalIgnoreCase) ? Summarize(lastUser)
             : Answer(lastUser);
         var inputChars = list.Sum(m => m.Text.Length);
@@ -135,6 +136,10 @@ public sealed partial class FakeChatClient : IChatClient
     [GeneratedRegex(@"<follow_up>\s*(?<text>.*?)\s*</follow_up>", RegexOptions.Singleline)]
     private static partial Regex FollowUp();
 
+    /// <summary>
+    /// Answers with the sentence of source [1] that shares the most meaningful words with the question,
+    /// citing it; declines when nothing overlaps, like a well-instructed model whose sources lack the answer.
+    /// </summary>
     public static string Answer(string userMessage)
     {
         var first = FirstSource().Match(userMessage);
@@ -143,10 +148,70 @@ public sealed partial class FakeChatClient : IChatClient
             return RagService.NoAnswerMessage;
         }
 
-        var content = first.Groups["content"].Value.Trim();
-        var sentence = FirstSentence().Match(content) is { Success: true } m ? m.Groups["s"].Value.Trim() : content;
-        return $"According to the documentation: {sentence} [{first.Groups["id"].Value}]";
+        var question = QuestionBlock().Match(userMessage) is { Success: true } q ? q.Groups["text"].Value : string.Empty;
+        var questionWords = ContentWords(question);
+        var content = HeadingLine().Replace(first.Groups["content"].Value, string.Empty).Trim();
+        var sentences = SentenceSplit().Split(content).Select(x => x.Trim()).Where(x => x.Length > 0).ToList();
+        var best = sentences
+            .Select((sentence, index) => (sentence, index, score: ContentWords(sentence).Count(questionWords.Contains)))
+            .OrderByDescending(x => x.score).ThenBy(x => x.index)
+            .FirstOrDefault();
+
+        // Test-double policy approximating a model that follows "answer only from the sources":
+        // decline unless the best sentence covers a meaningful share of the question.
+        if (questionWords.Count > 0 && best.score < Math.Max(1, questionWords.Count * 0.4))
+        {
+            return RagService.NoAnswerMessage;
+        }
+
+        return $"According to the documentation: {best.sentence ?? content} [{first.Groups["id"].Value}]";
     }
+
+    /// <summary>Fake groundedness judge: share of the answer's content words that appear in the sources, mapped to 1–5.</summary>
+    public static string Judge(string judgeRequest)
+    {
+        var sources = Between(judgeRequest, "<sources>", "</sources>");
+        var answer = CitationMarker().Replace(Between(judgeRequest, "<answer>", "</answer>"), string.Empty)
+            .Replace("According to the documentation:", string.Empty, StringComparison.Ordinal);
+        var answerWords = ContentWords(answer);
+        var sourceWords = ContentWords(sources);
+        var supported = answerWords.Count == 0 ? 1.0 : (double)answerWords.Count(sourceWords.Contains) / answerWords.Count;
+        var score = 1 + (int)Math.Round(supported * 4);
+        var unsupported = answerWords.Where(w => !sourceWords.Contains(w)).Take(5).Select(w => $"\"{w}\"");
+        return $"{{\"score\": {score}, \"unsupported_claims\": [{string.Join(", ", unsupported)}]}}";
+    }
+
+    private static readonly HashSet<string> StopWords = new(StringComparer.Ordinal)
+    {
+        "THE", "AND", "FOR", "ARE", "YOU", "YOUR", "HOW", "WHAT", "DOES", "CAN", "WITH", "THIS", "THAT", "FROM",
+        "HAVE", "HAS", "WHEN", "WHERE", "WHICH", "WHO", "WILL", "INTO", "ABOUT", "THERE", "THEIR", "THEY", "DO", "IS",
+        "OUR", "ANY", "ALL", "NOT", "BUT", "WAS", "WERE", "BEEN", "THEN", "THAN", "ALSO", "MY", "ME", "IT", "ITS",
+    };
+
+    private static HashSet<string> ContentWords(string text) =>
+        WordPattern().Matches(text.ToUpperInvariant()).Select(m => m.Value).Where(w => w.Length >= 3 && !StopWords.Contains(w)).ToHashSet(StringComparer.Ordinal);
+
+    private static string Between(string text, string open, string close)
+    {
+        var start = text.IndexOf(open, StringComparison.Ordinal);
+        var end = text.IndexOf(close, StringComparison.Ordinal);
+        return start < 0 || end < start ? string.Empty : text[(start + open.Length)..end];
+    }
+
+    [GeneratedRegex(@"<question>\s*(?<text>.*?)\s*</question>", RegexOptions.Singleline)]
+    private static partial Regex QuestionBlock();
+
+    [GeneratedRegex(@"^#.*$", RegexOptions.Multiline)]
+    private static partial Regex HeadingLine();
+
+    [GeneratedRegex(@"(?<=[.!?])\s+|\n+")]
+    private static partial Regex SentenceSplit();
+
+    [GeneratedRegex(@"[\p{L}\p{N}]+")]
+    private static partial Regex WordPattern();
+
+    [GeneratedRegex(@"\[\d+\]")]
+    private static partial Regex CitationMarker();
 
     public object? GetService(Type serviceType, object? serviceKey = null) =>
         serviceKey is null && serviceType.IsInstanceOfType(this) ? this : null;
@@ -157,8 +222,4 @@ public sealed partial class FakeChatClient : IChatClient
 
     [GeneratedRegex(@"<source id=""(?<id>\d+)""[^>]*>\n(?<content>.*?)\n</source>", RegexOptions.Singleline)]
     private static partial Regex FirstSource();
-
-    // Skip a leading Markdown heading line, then take up to the first sentence end.
-    [GeneratedRegex(@"(?:^#.*\n+)?(?<s>[^\n]*?[.!?])(?=\s|$)")]
-    private static partial Regex FirstSentence();
 }

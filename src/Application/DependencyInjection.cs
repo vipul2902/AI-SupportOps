@@ -3,6 +3,7 @@ using AISupportOps.Application.Agents.Tools;
 using AISupportOps.Application.Auditing;
 using AISupportOps.Application.Chat;
 using AISupportOps.Application.Documents;
+using AISupportOps.Application.Evaluation;
 using AISupportOps.Application.Identity;
 using AISupportOps.Application.Ingestion;
 using AISupportOps.Application.Knowledge;
@@ -42,6 +43,9 @@ public static class DependencyInjection
         services.AddScoped<ToolRegistry>();
         services.AddScoped<ToolExecutor>();
         services.AddScoped<AgentService>();
+        services.AddScoped<GroundednessJudge>();
+        services.AddScoped<EvaluationService>();
+        services.AddScoped<AiMetricsService>();
         services.AddOptions<AgentOptions>()
             .Bind(configuration.GetSection(AgentOptions.SectionName))
             .ValidateDataAnnotations()

@@ -32,6 +32,7 @@ internal sealed class MessageConfiguration : IEntityTypeConfiguration<Message>
         builder.Property(m => m.RetrievalQuery).HasMaxLength(4000);
         builder.Property(m => m.Model).HasMaxLength(100);
         builder.Property(m => m.PromptId).HasMaxLength(100);
+        builder.Property(m => m.FeedbackComment).HasMaxLength(1000);
 
         // Citations are a point-in-time snapshot of what the answer cited: one jsonb column, no join table.
         builder.OwnsMany(m => m.Citations, c => c.ToJson());

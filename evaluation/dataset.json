@@ -1,0 +1,19 @@
+{
+  "name": "support-kb-v1",
+  "description": "Labelled questions over the documents in evaluation/docs. Answerable cases name the source that must be retrieved and cited, and key facts a correct answer must contain. Unanswerable cases must produce an abstention.",
+  "cases": [
+    { "id": "pw-reset", "question": "How do I reset my password?", "expectedSource": "account-security.md", "keyFacts": ["Reset password"] },
+    { "id": "pw-link-expiry", "question": "How long until the password reset link expires?", "expectedSource": "account-security.md", "keyFacts": ["30 minutes"] },
+    { "id": "2fa-enable", "question": "Where do I enable two-factor authentication?", "expectedSource": "account-security.md", "keyFacts": ["Two-factor authentication"] },
+    { "id": "invoice-date", "question": "When are invoices issued each month?", "expectedSource": "billing.md", "keyFacts": ["first day"] },
+    { "id": "failed-payment", "question": "What happens if a card payment fails?", "expectedSource": "billing.md", "keyFacts": ["three times"] },
+    { "id": "refund-window", "question": "Are refunds available for annual plans?", "expectedSource": "billing.md", "keyFacts": ["14 days"] },
+    { "id": "sso-providers", "question": "Which identity providers does single sign-on support?", "expectedSource": "enterprise-plan.md", "keyFacts": ["Okta"] },
+    { "id": "uptime-sla", "question": "What uptime SLA do Enterprise customers receive?", "expectedSource": "enterprise-plan.md", "keyFacts": ["99.9"] },
+    { "id": "webhook-signature", "question": "How are webhook requests signed?", "expectedSource": "integrations.md", "keyFacts": ["HMAC", "X-Signature"] },
+    { "id": "api-rate-limit", "question": "What is the public API rate limit?", "expectedSource": "integrations.md", "keyFacts": ["600 requests"] },
+    { "id": "no-student-discount", "question": "Is there a student discount?", "shouldAbstain": true },
+    { "id": "no-kubernetes", "question": "How do I deploy the on-premise Kubernetes operator?", "shouldAbstain": true },
+    { "id": "no-office-address", "question": "What is the street address of your Berlin office?", "shouldAbstain": true }
+  ]
+}

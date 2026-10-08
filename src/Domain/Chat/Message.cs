@@ -83,6 +83,25 @@ public sealed class Message : Entity, ITenantOwned
 
     public long? LatencyMs { get; private set; }
 
+    /// <summary>User feedback on an assistant answer: true = helpful, false = not helpful, null = none.</summary>
+    public bool? FeedbackHelpful { get; private set; }
+
+    public string? FeedbackComment { get; private set; }
+
+    public DateTimeOffset? FeedbackAt { get; private set; }
+
+    public void SetFeedback(bool helpful, string? comment, DateTimeOffset now)
+    {
+        if (Role != MessageRole.Assistant)
+        {
+            throw new InvalidOperationException("Feedback can only be given on assistant messages.");
+        }
+
+        FeedbackHelpful = helpful;
+        FeedbackComment = string.IsNullOrWhiteSpace(comment) ? null : comment.Trim();
+        FeedbackAt = now;
+    }
+
     public static Message FromUser(Guid tenantId, Guid conversationId, string content)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(content);

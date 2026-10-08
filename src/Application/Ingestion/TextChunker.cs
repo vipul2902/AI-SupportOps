@@ -21,7 +21,9 @@ public sealed partial class TextChunker(ITokenCounter tokens, int maxTokens, int
         var chunks = new List<TextChunk>();
         string? heading = null;
 
-        // Chunks never span sections (pages), so every chunk has exactly one page for citations.
+        // Chunks never span pages (one page per citation) and, for Markdown/DOCX, never span
+        // headings: each chunk covers one topic, which keeps its embedding focused. Found by the
+        // evaluation suite: multi-section chunks diluted embeddings and missed short questions.
         foreach (var section in sections)
         {
             var units = new List<Unit>();
@@ -29,6 +31,8 @@ public sealed partial class TextChunker(ITokenCounter tokens, int maxTokens, int
             {
                 if (markdownHeadings && HeadingLine().Match(paragraph) is { Success: true } match)
                 {
+                    Pack(units, section.PageNumber, chunks);
+                    units = [];
                     heading = match.Groups["title"].Value.Trim();
                 }
 

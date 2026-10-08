@@ -5,6 +5,7 @@ using AISupportOps.Domain.Auditing;
 using AISupportOps.Domain.Chat;
 using AISupportOps.Domain.Common;
 using AISupportOps.Domain.Documents;
+using AISupportOps.Domain.Evaluation;
 using AISupportOps.Domain.Identity;
 using AISupportOps.Domain.Tenants;
 using AISupportOps.Domain.Tickets;
@@ -44,6 +45,10 @@ public sealed class AppDbContext(
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     public DbSet<ToolExecution> ToolExecutions => Set<ToolExecution>();
+
+    public DbSet<EvaluationRun> EvaluationRuns => Set<EvaluationRun>();
+
+    public DbSet<EvaluationResult> EvaluationResults => Set<EvaluationResult>();
 
     internal DbSet<TicketCounter> TicketCounters => Set<TicketCounter>();
 

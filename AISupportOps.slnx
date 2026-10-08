@@ -13,6 +13,9 @@
     <Project Path="src/Infrastructure/AISupportOps.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/" />
+  <Folder Name="/tests/EvaluationTests/">
+    <Project Path="tests/EvaluationTests/AISupportOps.EvaluationTests.csproj" />
+  </Folder>
   <Folder Name="/tests/IntegrationTests/">
     <Project Path="tests/IntegrationTests/AISupportOps.IntegrationTests.csproj" />
   </Folder>

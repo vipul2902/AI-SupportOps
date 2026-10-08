@@ -69,7 +69,7 @@ See [.env.example](.env.example). Secrets are never committed: Docker reads `.en
 ## Testing
 
 ```bash
-dotnet test                       # integration tests need Docker running
+dotnet test                       # unit, integration, and RAG evaluation tests (Docker required for the latter two)
 ```
 
 ## API overview
@@ -98,6 +98,8 @@ dotnet test                       # integration tests need Docker running
 | `GET /api/customers`, `GET /api/customers/{id}` · `POST /api/customers` | Viewer+ · Agent+ |
 | `GET /api/audit-logs?entityType=&entityId=&actorType=` | Admin+ |
 | `POST /api/agent` (AI agent with role-filtered, validated, audited tool calls) | Viewer+ (tools depend on role) |
+| `POST /api/conversations/{id}/messages/{messageId}/feedback` | Viewer+ (own conversations) |
+| `GET /api/evaluations/metrics`, `POST/GET /api/evaluations/runs` | Admin+ |
 
 Agent design and safety controls: [docs/agentic-ai.md](docs/agentic-ai.md)
 | `POST /api/documents/{id}/reprocess`, `DELETE /api/documents/{id}` | Admin+ |
@@ -123,7 +125,8 @@ Auth model, RBAC rules, and tenant isolation design: [docs/security.md](docs/sec
 - [x] Phase 8 — Memory tiers (window + rolling summary), Redis embedding cache and distributed rate limiting
 - [x] Phase 9 — Support tickets: workflow state machine, per-tenant numbering, optimistic concurrency, audit log
 - [x] Phase 10 — Agentic AI: declaration-only tools, role-filtered toolsets, schema validation, budgets, tool execution log
-- [ ] Phase 11–12 — AI evaluation, observability
+- [x] Phase 11 — AI evaluation: labelled dataset, retrieval/citation/abstention metrics, LLM-judge groundedness, online metrics, feedback, CI quality gate ([docs/evaluation.md](docs/evaluation.md))
+- [ ] Phase 12 — Observability
 - [ ] Phase 13+ — React dashboard, CI/CD, Azure deployment
 
 ## License

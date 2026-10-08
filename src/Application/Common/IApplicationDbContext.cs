@@ -2,6 +2,7 @@ using AISupportOps.Domain.Agents;
 using AISupportOps.Domain.Auditing;
 using AISupportOps.Domain.Chat;
 using AISupportOps.Domain.Documents;
+using AISupportOps.Domain.Evaluation;
 using AISupportOps.Domain.Identity;
 using AISupportOps.Domain.Tenants;
 using AISupportOps.Domain.Tickets;
@@ -42,6 +43,10 @@ public interface IApplicationDbContext
     DbSet<AuditLog> AuditLogs { get; }
 
     DbSet<ToolExecution> ToolExecutions { get; }
+
+    DbSet<EvaluationRun> EvaluationRuns { get; }
+
+    DbSet<EvaluationResult> EvaluationResults { get; }
 
     ChangeTracker ChangeTracker { get; }
 

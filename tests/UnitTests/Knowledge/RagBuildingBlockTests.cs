@@ -86,7 +86,7 @@ public class RagBuildingBlockTests
     [Fact]
     public void Fake_model_answers_from_first_source_or_declines()
     {
-        const string withSources = "Sources:\n<source id=\"1\" document=\"a.md\">\n# Reset\n\nOpen Settings to reset. More text.\n</source>\n\n<question>\nhow?\n</question>";
+        const string withSources = "Sources:\n<source id=\"1\" document=\"a.md\">\n# Reset\n\nOpen Settings to reset. More text.\n</source>\n\n<question>\nhow do I reset?\n</question>";
 
         Assert.Equal("According to the documentation: Open Settings to reset. [1]", FakeChatClient.Answer(withSources));
         Assert.Equal(RagService.NoAnswerMessage, FakeChatClient.Answer("<question>\nhow?\n</question>"));

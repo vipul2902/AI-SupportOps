@@ -18,7 +18,7 @@ Upload ──► documents (status = Uploaded) + file storage
               │
         normalize NFKC, newlines, control chars, PDF hyphenation, whitespace
               │
-        chunk     paragraphs → sentences → words, packed to 512 tokens, 64-token overlap
+        chunk     new chunk per heading; paragraphs → sentences → words, ≤ 512 tokens, 64-token overlap
               │
         embed     batches of 64, text = "file > heading\n\ncontent" (contextual header)
               │
@@ -52,8 +52,10 @@ ingestion moves into its own service or throughput needs exceed polling.
   `cl100k_base`, the encoding of OpenAI's `text-embedding-3` models.
 - **~512 tokens.** Small enough that a chunk is about one topic (precise retrieval) and several
   fit in a prompt; large enough to carry the context needed to answer. Tunable via config.
-- **Structure-aware splitting.** Breaking on paragraphs, then sentences, keeps chunks coherent;
-  arbitrary fixed-size windows cut facts in half and produce noisier embeddings.
+- **Structure-aware splitting.** A heading always starts a new chunk (one topic per chunk), then
+  paragraphs, then sentences. Arbitrary fixed-size windows cut facts in half and mix topics, producing
+  noisier embeddings. The heading rule was added after the evaluation suite showed multi-section
+  chunks missing short questions (Hit@K 0.7 → 0.9; see [evaluation.md](evaluation.md)).
 - **Overlap (64 tokens).** A fact straddling a boundary still appears whole in one chunk.
 - **Metadata for citations.** PDF chunks never span pages, so each carries one `page_number`;
   Markdown/DOCX chunks carry their section `heading`.

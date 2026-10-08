@@ -1,12 +1,13 @@
 using AISupportOps.Application.Common;
 using AISupportOps.Application.Documents;
+using AISupportOps.Application.Evaluation;
 using AISupportOps.Domain.Chat;
 using Microsoft.EntityFrameworkCore;
 
 namespace AISupportOps.Application.Chat;
 
 /// <summary>Reading and managing the current user's own conversations.</summary>
-public sealed class ConversationService(IApplicationDbContext db, ICurrentUser currentUser)
+public sealed class ConversationService(IApplicationDbContext db, ICurrentUser currentUser, TimeProvider time)
 {
     public async Task<PagedResponse<ConversationSummary>> ListAsync(int page, int pageSize, CancellationToken ct)
     {
@@ -50,6 +51,21 @@ public sealed class ConversationService(IApplicationDbContext db, ICurrentUser c
     {
         var conversation = await FindAsync(id, ct);
         db.Conversations.Remove(conversation); // messages cascade
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>Thumbs up/down on an assistant answer in one of the caller's own conversations.</summary>
+    public async Task SetFeedbackAsync(Guid conversationId, Guid messageId, FeedbackRequest request, CancellationToken ct)
+    {
+        await FindAsync(conversationId, ct);
+        var message = await db.Messages.SingleOrDefaultAsync(m => m.Id == messageId && m.ConversationId == conversationId, ct)
+            ?? throw new NotFoundException("Message not found.");
+        if (message.Role != MessageRole.Assistant)
+        {
+            throw new BusinessRuleException("Feedback can only be given on assistant answers.");
+        }
+
+        message.SetFeedback(request.Helpful, request.Comment, time.GetUtcNow());
         await db.SaveChangesAsync(ct);
     }
 

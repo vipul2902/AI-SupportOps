@@ -91,4 +91,17 @@ public class TextChunkerTests
         Assert.Contains(chunks, c => c.Heading == "Billing" && c.Content.Contains("Invoices", StringComparison.Ordinal));
         Assert.Contains(chunks, c => c.Heading == "Refunds" && c.Content.Contains("five days", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void Markdown_sections_start_new_chunks_even_when_they_would_fit_together()
+    {
+        const string text = "# Billing\n\nInvoices are monthly.\n\n## Refunds\n\nRefunds take five days.";
+
+        var chunks = new TextChunker(Words, maxTokens: 500, overlapTokens: 50)
+            .Chunk([new ExtractedSection(text, null)], markdownHeadings: true);
+
+        Assert.Equal(2, chunks.Count);
+        Assert.DoesNotContain("Refunds", chunks[0].Content, StringComparison.Ordinal);
+        Assert.Equal(("Billing", "Refunds"), (chunks[0].Heading, chunks[1].Heading));
+    }
 }
