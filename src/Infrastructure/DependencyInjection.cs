@@ -1,7 +1,9 @@
 using AISupportOps.Application.Common;
+using AISupportOps.Application.Documents;
 using AISupportOps.Application.Identity;
 using AISupportOps.Infrastructure.Identity;
 using AISupportOps.Infrastructure.Persistence;
+using AISupportOps.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,6 +34,12 @@ public static class DependencyInjection
 
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddSingleton<IAccessTokenIssuer, JwtAccessTokenIssuer>();
+
+        services.AddOptions<LocalFileStorageOptions>()
+            .Bind(configuration.GetSection(LocalFileStorageOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddSingleton<IFileStorage, LocalFileStorage>();
 
         services.AddHealthChecks()
             .AddDbContextCheck<AppDbContext>("postgres", tags: [ReadyTag])

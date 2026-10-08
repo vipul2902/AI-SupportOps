@@ -28,6 +28,8 @@ internal sealed partial class GlobalExceptionHandler(
             ForbiddenException => (StatusCodes.Status403Forbidden, "Forbidden"),
             UnauthorizedException => (StatusCodes.Status401Unauthorized, "Unauthorized"),
             BusinessRuleException => (StatusCodes.Status422UnprocessableEntity, "Business rule violated"),
+            UnsupportedFileException => (StatusCodes.Status415UnsupportedMediaType, "Unsupported file"),
+            PayloadTooLargeException => (StatusCodes.Status413PayloadTooLarge, "Payload too large"),
             BadHttpRequestException bad => (bad.StatusCode, "Bad request"),
             _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred."),
         };

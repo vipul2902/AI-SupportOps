@@ -19,3 +19,9 @@ public sealed class UnauthorizedException(string message) : AppException(message
 
 /// <summary>The request is well-formed but violates a business rule.</summary>
 public sealed class BusinessRuleException(string message) : AppException(message);
+
+/// <summary>The uploaded file's type is not allowed or its content does not match its extension.</summary>
+public sealed class UnsupportedFileException(string message) : AppException(message);
+
+/// <summary>The request body exceeds a configured size limit.</summary>
+public sealed class PayloadTooLargeException(string message) : AppException(message);

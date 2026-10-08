@@ -494,3 +494,6 @@ secrets.json
 node_modules/
 dist/
 coverage/
+
+# --- Local uploaded files ---
+data/

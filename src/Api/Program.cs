@@ -3,9 +3,11 @@ using AISupportOps.Api.Auth;
 using AISupportOps.Api.Endpoints;
 using AISupportOps.Api.Infrastructure;
 using AISupportOps.Application;
+using AISupportOps.Application.Documents;
 using AISupportOps.Infrastructure;
 using AISupportOps.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Http.Features;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,7 +20,13 @@ builder.Services.AddProblemDetails(options =>
         ctx.ProblemDetails.Extensions["traceId"] = ctx.HttpContext.TraceIdentifier);
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
-builder.Services.AddApplication();
+builder.Services.AddApplication(builder.Configuration);
+
+// Multipart limit slightly above the document limit (form overhead); the exact limit is
+// enforced while streaming in DocumentService.
+var maxUploadBytes = builder.Configuration.GetValue($"{DocumentOptions.SectionName}:MaxFileSizeBytes", new DocumentOptions().MaxFileSizeBytes);
+builder.Services.Configure<FormOptions>(o => o.MultipartBodyLengthLimit = maxUploadBytes + (1024 * 1024));
+builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = maxUploadBytes + (1024 * 1024));
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApiAuth(builder.Configuration);
 
@@ -50,6 +58,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 
 app.MapAuthEndpoints();
 app.MapTenantEndpoints();
+app.MapDocumentEndpoints();
 
 await app.RunAsync();
 

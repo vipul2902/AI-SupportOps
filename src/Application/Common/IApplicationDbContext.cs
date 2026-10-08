@@ -1,3 +1,4 @@
+using AISupportOps.Domain.Documents;
 using AISupportOps.Domain.Identity;
 using AISupportOps.Domain.Tenants;
 using Microsoft.EntityFrameworkCore;
@@ -20,6 +21,8 @@ public interface IApplicationDbContext
     DbSet<TenantMembership> TenantMemberships { get; }
 
     DbSet<Invitation> Invitations { get; }
+
+    DbSet<Document> Documents { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using AISupportOps.Application.Common;
 using AISupportOps.Domain.Common;
+using AISupportOps.Domain.Documents;
 using AISupportOps.Domain.Identity;
 using AISupportOps.Domain.Tenants;
 using Microsoft.EntityFrameworkCore;
@@ -22,6 +23,8 @@ public sealed class AppDbContext(
     public DbSet<TenantMembership> TenantMemberships => Set<TenantMembership>();
 
     public DbSet<Invitation> Invitations => Set<Invitation>();
+
+    public DbSet<Document> Documents => Set<Document>();
 
     /// <summary>
     /// Read by the global query filters on every query. EF Core evaluates it per DbContext

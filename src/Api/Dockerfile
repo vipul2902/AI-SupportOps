@@ -16,6 +16,8 @@ RUN dotnet publish src/Api/AISupportOps.Api.csproj -c Release -o /app --no-resto
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=build /app .
+# Writable upload directory owned by the non-root app user (a named volume inherits this ownership).
+RUN mkdir -p /app/data/uploads && chown -R $APP_UID /app/data
 USER $APP_UID
 EXPOSE 8080
 ENTRYPOINT ["dotnet", "AISupportOps.Api.dll"]

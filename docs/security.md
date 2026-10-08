@@ -38,6 +38,20 @@ Another tenant's resources return **404, not 403**, so their existence is not re
 
 Phase 5 extends this to vector search: every similarity query is tenant-filtered in SQL.
 
+## File uploads
+
+| Threat | Control |
+|---|---|
+| Executable or script uploaded as a "document" | Extension allowlist (`.pdf .txt .md .markdown .docx`) **and** magic-byte check; the client `Content-Type` is ignored |
+| Renamed binary (`invoice.pdf` that is really an `.exe`) | Signature must match the extension (`%PDF-`, ZIP header, valid UTF-8 without NUL bytes) → `415` |
+| Path traversal via file name (`../../etc/passwd`) | Storage keys are generated (`{tenantId}/{uuid}`); the user's file name is sanitized and used for display only; storage resolves keys strictly inside its root |
+| Oversized uploads / lying `Content-Length` | Size is counted while streaming and the upload aborts at the limit (`413`); Kestrel and multipart limits back this up |
+| Stored XSS via download | Downloads are always `Content-Disposition: attachment` with `X-Content-Type-Options: nosniff` |
+| Cross-tenant access | Documents are `ITenantOwned` (query filter + write guard); other tenants get `404` |
+| Partial files | Written to `*.partial` then atomically moved; failed uploads delete the blob |
+
+Not yet implemented: antivirus scanning (e.g. Microsoft Defender for Storage on Azure Blob) and deep validation of PDF/DOCX structure, which happens during extraction in the ingestion pipeline.
+
 ## Known trade-offs
 
 - A removed or demoted user's *access token* stays cryptographically valid for up to 15 minutes. Endpoints that matter re-check membership; a revocation list in Redis is a possible future improvement.
