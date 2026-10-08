@@ -63,6 +63,20 @@ dotnet run --project src/Api
 
 In Development the API applies EF Core migrations on startup.
 
+### Frontend (React)
+
+```bash
+cd src/Web
+npm install
+npm run dev        # http://localhost:5173 (proxies /api to http://localhost:8080; set API_URL to change)
+npm test           # Vitest + React Testing Library
+npm run build      # type-check and production build
+```
+
+Stack: Vite, React 19, TypeScript, TanStack Query, React Router, Tailwind CSS. Pages: sign-in/register/invitations,
+dashboard (AI quality metrics), streaming AI assistant with citations and agent mode, conversations, knowledge
+base, tickets, evaluations, team, settings.
+
 ### Environment variables
 
 See [.env.example](.env.example). Secrets are never committed: Docker reads `.env` (git-ignored), host runs use `dotnet user-secrets`.
@@ -128,7 +142,8 @@ Auth model, RBAC rules, and tenant isolation design: [docs/security.md](docs/sec
 - [x] Phase 10 — Agentic AI: declaration-only tools, role-filtered toolsets, schema validation, budgets, tool execution log
 - [x] Phase 11 — AI evaluation: labelled dataset, retrieval/citation/abstention metrics, LLM-judge groundedness, online metrics, feedback, CI quality gate ([docs/evaluation.md](docs/evaluation.md))
 - [x] Phase 12 — Observability: OpenTelemetry traces/metrics/logs, GenAI spans, Aspire Dashboard
-- [ ] Phase 13+ — React dashboard, CI/CD, Azure deployment
+- [x] Phase 13 — React SaaS dashboard: streaming chat, knowledge base, tickets, evaluations, team
+- [ ] Phase 14+ — Hardening, CI/CD, Azure deployment
 
 ## License
 

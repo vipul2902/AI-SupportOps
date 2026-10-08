@@ -52,6 +52,18 @@ Phase 5 extends this to vector search: every similarity query is tenant-filtered
 
 Not yet implemented: antivirus scanning (e.g. Microsoft Defender for Storage on Azure Blob) and deep validation of PDF/DOCX structure, which happens during extraction in the ingestion pipeline.
 
+## Frontend
+
+- **Access token in memory only**; refresh token in `localStorage` so sessions survive reloads. Trade-off:
+  script injected via XSS could read the refresh token. The stronger design is an `httpOnly`,
+  `SameSite=Strict` refresh cookie set by the API (planned hardening).
+- **Single-flight refresh**: concurrent 401s share one refresh call. Refresh tokens rotate and reuse
+  revokes the whole session, so parallel refreshes would otherwise log the user out.
+- **Model output is untrusted**: Markdown is rendered with `react-markdown` (no raw HTML); external links
+  open with `rel="noopener noreferrer nofollow"`.
+- **UI role checks are UX only**: hidden buttons improve the experience; every permission is enforced by the API.
+- **Same origin**: `/api` is proxied (Vite in development, nginx in production), so no CORS policy is opened.
+
 ## Known trade-offs
 
 - A removed or demoted user's *access token* stays cryptographically valid for up to 15 minutes. Endpoints that matter re-check membership; a revocation list in Redis is a possible future improvement.

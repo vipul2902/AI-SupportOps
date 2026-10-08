@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+/* Design tokens: a neutral slate UI with one indigo accent. */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4338ca;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased;
+}
+
+/* Rendered assistant Markdown. */
+.prose-chat p { @apply my-2 leading-relaxed; }
+.prose-chat ul { @apply my-2 list-disc pl-5; }
+.prose-chat ol { @apply my-2 list-decimal pl-5; }
+.prose-chat li { @apply my-0.5; }
+.prose-chat code { @apply rounded bg-slate-100 px-1 py-0.5 text-[0.85em]; }
+.prose-chat pre { @apply my-2 overflow-x-auto rounded-lg bg-slate-900 p-3 text-slate-100; }
+.prose-chat a { @apply text-brand-600 underline; }
+.prose-chat strong { @apply font-semibold; }
