@@ -40,6 +40,9 @@ internal sealed partial class PgvectorRetrievalService(
         var tenantId = tenantContext.TenantId
             ?? throw new InvalidOperationException("Vector search requires a tenant context.");
 
+        using var activity = Telemetry.Source.StartActivity("vector.search");
+        activity?.SetTag("db.system", "postgresql");
+        activity?.SetTag("vector.top_k", query.TopK);
         var embedStopwatch = Stopwatch.StartNew();
         var vector = new Vector(await embeddings.EmbedQueryAsync(query.Text, ct));
         var embedMs = embedStopwatch.ElapsedMilliseconds;
@@ -84,6 +87,9 @@ internal sealed partial class PgvectorRetrievalService(
             .ToList();
 
         var topScore = results.Count > 0 ? results[0].Score : 0;
+        activity?.SetTag("vector.results", results.Count);
+        activity?.SetTag("vector.top_score", topScore);
+        activity?.SetTag("vector.embed_ms", embedMs);
         LogSearch(logger, tenantId, results.Count, topScore, embedMs, searchStopwatch.ElapsedMilliseconds);
         return results;
     }

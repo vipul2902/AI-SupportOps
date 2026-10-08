@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Http.Features;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.AddObservability();
 
 builder.Services.AddOpenApi();
 builder.Services.AddValidation();
@@ -17,7 +18,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddProblemDetails(options =>
     options.CustomizeProblemDetails = ctx =>
-        ctx.ProblemDetails.Extensions["traceId"] = ctx.HttpContext.TraceIdentifier);
+        ctx.ProblemDetails.Extensions["traceId"] = Observability.CurrentTraceId(ctx.HttpContext));
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
 builder.Services.AddApplication(builder.Configuration);

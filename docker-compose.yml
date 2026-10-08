@@ -44,6 +44,8 @@ services:
       Auth__SigningKey: ${JWT_SIGNING_KEY:?set in .env}
       Ai__Provider: ${AI_PROVIDER:-Fake}
       Ai__OpenAI__ApiKey: ${OPENAI_API_KEY:-}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://aspire-dashboard:18889
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
     volumes:
       - uploads:/app/data/uploads
     ports:
@@ -53,6 +55,16 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  # Local observability UI: traces, metrics, and structured logs over OTLP.
+  # Dev only: anonymous access. Production exports to Azure Monitor instead.
+  aspire-dashboard:
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:9.5
+    profiles: ["full"]
+    environment:
+      DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS: "true"
+    ports:
+      - "${DASHBOARD_PORT:-18888}:18888"
 
 volumes:
   postgres-data:

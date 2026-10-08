@@ -97,15 +97,17 @@ public static class DependencyInjection
         services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(sp =>
         {
             var ai = sp.GetRequiredService<IOptions<AiOptions>>().Value;
-            if (ai.Provider == AiProvider.Fake)
-            {
-                return new FakeEmbeddingGenerator();
-            }
+            IEmbeddingGenerator<string, Embedding<float>> generator = ai.Provider == AiProvider.Fake
+                ? new FakeEmbeddingGenerator()
+                : new OpenAIClient(
+                        new System.ClientModel.ApiKeyCredential(ai.OpenAI.ApiKey!),
+                        new OpenAIClientOptions { Endpoint = ai.OpenAI.Endpoint })
+                    .GetEmbeddingClient(ai.OpenAI.EmbeddingModel).AsIEmbeddingGenerator();
 
-            var client = new OpenAIClient(
-                new System.ClientModel.ApiKeyCredential(ai.OpenAI.ApiKey!),
-                new OpenAIClientOptions { Endpoint = ai.OpenAI.Endpoint });
-            return client.GetEmbeddingClient(ai.OpenAI.EmbeddingModel).AsIEmbeddingGenerator();
+            // GenAI semantic-convention spans/metrics (model, tokens, duration) for every embedding call.
+            return generator.AsBuilder()
+                .UseOpenTelemetry(sp.GetRequiredService<ILoggerFactory>(), Telemetry.AiName)
+                .Build(sp);
         });
 
         services.AddSingleton(sp =>
@@ -128,15 +130,18 @@ public static class DependencyInjection
         services.AddSingleton<IChatClient>(sp =>
         {
             var ai = sp.GetRequiredService<IOptions<AiOptions>>().Value;
-            if (ai.Provider == AiProvider.Fake)
-            {
-                return new FakeChatClient();
-            }
+            IChatClient client = ai.Provider == AiProvider.Fake
+                ? new FakeChatClient()
+                : new OpenAIClient(
+                        new System.ClientModel.ApiKeyCredential(ai.OpenAI.ApiKey!),
+                        new OpenAIClientOptions { Endpoint = ai.OpenAI.Endpoint })
+                    .GetChatClient(ai.OpenAI.ChatModel).AsIChatClient();
 
-            var client = new OpenAIClient(
-                new System.ClientModel.ApiKeyCredential(ai.OpenAI.ApiKey!),
-                new OpenAIClientOptions { Endpoint = ai.OpenAI.Endpoint });
-            return client.GetChatClient(ai.OpenAI.ChatModel).AsIChatClient();
+            // GenAI spans/metrics for every LLM call. EnableSensitiveData stays false (the default):
+            // prompts and completions contain customer data and must not land in telemetry.
+            return client.AsBuilder()
+                .UseOpenTelemetry(sp.GetRequiredService<ILoggerFactory>(), Telemetry.AiName)
+                .Build(sp);
         });
 
         services.AddSingleton(sp =>

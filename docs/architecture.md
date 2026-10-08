@@ -46,6 +46,42 @@ the EF global query filter and write guard.
 | Audit | `AuditTrail` adds the entry to the same unit of work as the change: committed or rolled back together. Field-level from/to, actor (user, and `AiAgent` in Phase 10), trace id |
 | Reuse | The AI agent's ticket tools (Phase 10) call the same `TicketService`, so the same rules apply to people and AI |
 
+## Observability
+
+OpenTelemetry for traces, metrics, and logs, exported over OTLP when `OTEL_EXPORTER_OTLP_ENDPOINT`
+is set: the **Aspire Dashboard** in Docker Compose (http://localhost:18888), Azure Monitor in production.
+
+**Traces.** One request is one connected trace:
+
+```
+POST /api/ask                                  (ASP.NET Core)
+└─ rag.ask            outcome, citations
+   ├─ rag.prepare     top_k, retrieved, top_score, sources_in_context, context_tokens
+   │  └─ vector.search   results, top_score, embed_ms
+   │     ├─ embeddings text-embedding-3-small   (GenAI span: model, tokens, duration)
+   │     └─ SELECT … ORDER BY embedding <=> …   (Npgsql span)
+   └─ chat gpt-4o-mini                          (GenAI span: model, tokens, finish reason)
+```
+
+Also: `chat.turn`, `agent.run` → `agent.tool` (per call, with status), `ingestion.process`.
+
+**Metrics** (`aisupportops.*`): retrieval and generation latency histograms, answers by outcome and
+channel, tokens by direction and operation, agent tool calls by tool and status, tool latency,
+ingestion results/latency/chunks, embedding-cache hit/miss, rate-limit rejections. Plus ASP.NET Core,
+HttpClient, Npgsql, runtime, and GenAI metrics from the libraries.
+
+**Rules.**
+- Metric tags are low-cardinality only (outcome, tool, status, …), enforced by a test. Model-invented
+  tool names are bucketed as `unknown`.
+- No prompts, answers, documents, or questions in telemetry. Microsoft.Extensions.AI's
+  `EnableSensitiveData` stays off; a test asserts a secret in a question never appears in any span.
+- Health probes are excluded from traces.
+- Error responses return the W3C **trace id**, so a reported error links straight to its trace.
+- JSON console logs outside Development; logs carry TraceId/SpanId for correlation.
+
+Not instrumented: Redis commands (the OpenTelemetry Redis instrumentation is prerelease-only).
+Redis behaviour is covered by the cache and rate-limit metrics, and its latency is inside parent spans.
+
 ## Cross-cutting decisions (Phase 1)
 
 - **Errors** — unhandled exceptions become RFC 7807 `ProblemDetails` with a `traceId`; stack traces are never returned.

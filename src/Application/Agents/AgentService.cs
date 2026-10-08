@@ -64,6 +64,7 @@ public sealed partial class AgentService(
     public async Task<AgentResponse> RunAsync(AgentRequest request, CancellationToken ct)
     {
         var settings = options.Value;
+        using var activity = Telemetry.Source.StartActivity("agent.run");
         var stopwatch = Stopwatch.StartNew();
         var tenantId = currentUser.RequireTenantId();
         var userId = currentUser.RequireUserId();
@@ -134,6 +135,13 @@ public sealed partial class AgentService(
         await db.SaveChangesAsync(CancellationToken.None);
 
         var failedSteps = steps.Count(s => s.Status != ToolExecutionStatus.Succeeded);
+        Telemetry.RecordTokens("agent", inputTokens, outputTokens);
+        activity?.SetTag("agent.run_id", budget.RunId);
+        activity?.SetTag("agent.role", member.Role.ToString());
+        activity?.SetTag("agent.tools_offered", tools.Count);
+        activity?.SetTag("agent.iterations", iterations);
+        activity?.SetTag("agent.tool_calls", steps.Count);
+        activity?.SetTag("agent.outcome", outcomeKind.ToString());
         LogRun(logger, budget.RunId, member.Role, tools.Count, iterations, steps.Count, failedSteps, outcomeKind, stopwatch.ElapsedMilliseconds);
         return new AgentResponse(conversation.Id, assistant.Id, budget.RunId, answer, outcomeKind, steps,
             tools.Select(t => t.Name).ToList(), iterations, inputTokens, outputTokens, stopwatch.ElapsedMilliseconds);

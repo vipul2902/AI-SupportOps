@@ -41,15 +41,18 @@ internal sealed partial class CachingEmbeddingService(
             if (await cache.GetAsync(key, ct) is { Length: > 0 } cached)
             {
                 LogHit(logger, tenantId);
+                Telemetry.EmbeddingCacheLookups.Add(1, new KeyValuePair<string, object?>("result", "hit"));
                 return MemoryMarshal.Cast<byte, float>(cached).ToArray();
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             LogCacheError(logger, ex);
+            Telemetry.EmbeddingCacheLookups.Add(1, new KeyValuePair<string, object?>("result", "error"));
             return await inner.EmbedQueryAsync(query, ct);
         }
 
+        Telemetry.EmbeddingCacheLookups.Add(1, new KeyValuePair<string, object?>("result", "miss"));
         var vector = await inner.EmbedQueryAsync(query, ct);
         try
         {

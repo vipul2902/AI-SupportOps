@@ -37,6 +37,11 @@ public sealed partial class DocumentIngestionService(
         }
 
         var settings = options.Value;
+        using var activity = Telemetry.Source.StartActivity("ingestion.process");
+        activity?.SetTag("document.id", document.Id);
+        activity?.SetTag("document.kind", document.Kind.ToString());
+        activity?.SetTag("document.size_bytes", document.SizeBytes);
+        activity?.SetTag("document.attempt", document.ProcessingAttempts);
         var stopwatch = Stopwatch.StartNew();
         try
         {
@@ -53,18 +58,27 @@ public sealed partial class DocumentIngestionService(
             await db.SaveChangesAsync(ct);
 
             var totalTokens = chunks.Sum(c => c.TokenCount);
+            Telemetry.DocumentsProcessed.Add(1, new KeyValuePair<string, object?>("result", "processed"));
+            Telemetry.ChunksCreated.Add(chunks.Count);
+            Telemetry.IngestionDuration.Record(stopwatch.ElapsedMilliseconds, new KeyValuePair<string, object?>("kind", document.Kind.ToString()));
+            activity?.SetTag("document.chunks", chunks.Count);
             LogProcessed(logger, document.Id, document.TenantId, chunks.Count, totalTokens, embeddingTokens, stopwatch.ElapsedMilliseconds);
         }
         catch (DocumentExtractionException ex)
         {
             // Permanent: the file itself is the problem. Retrying will not help.
             LogPermanentFailure(logger, document.Id, ex.Message);
+            Telemetry.DocumentsProcessed.Add(1, new KeyValuePair<string, object?>("result", "failed"));
+            activity.SetError(ex.Message);
             await RecordFailureAsync(document.Id, d => d.MarkFailed(ex.Message));
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             // Possibly transient (storage/database hiccup): retry until the attempt budget is spent.
             LogTransientFailure(logger, ex, document.Id, document.ProcessingAttempts, settings.MaxAttempts);
+            Telemetry.DocumentsProcessed.Add(1, new KeyValuePair<string, object?>("result", "retry"));
+            activity?.AddException(ex);
+            activity.SetError("transient failure");
             await RecordFailureAsync(document.Id, d =>
             {
                 if (d.ProcessingAttempts >= settings.MaxAttempts)

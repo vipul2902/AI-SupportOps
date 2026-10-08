@@ -60,6 +60,8 @@ public sealed partial class ToolExecutor(
     public async Task<ToolCallOutcome> ExecuteAsync(ToolCall call, AgentRunBudget budget, CancellationToken ct)
     {
         var settings = options.Value;
+        using var activity = Telemetry.Source.StartActivity("agent.tool");
+        activity?.SetTag("agent.tool.name", call.Name);
         var stopwatch = Stopwatch.StartNew();
         var tool = registry.Find(call.Name);
 
@@ -161,6 +163,15 @@ public sealed partial class ToolExecutor(
         await db.SaveChangesAsync(CancellationToken.None);
 
         LogExecuted(logger, call.Name, status, latency);
+        // Unknown names are bucketed: a model inventing tool names must not explode metric cardinality.
+        var toolTag = registry.Find(call.Name) is null ? "unknown" : call.Name;
+        Telemetry.ToolCalls.Add(1, new("tool", toolTag), new("status", status.ToString()));
+        Telemetry.ToolDuration.Record(latency, new KeyValuePair<string, object?>("tool", toolTag));
+        Activity.Current?.SetTag("agent.tool.status", status.ToString());
+        if (status is ToolExecutionStatus.Failed or ToolExecutionStatus.Denied)
+        {
+            Activity.Current.SetError(status.ToString());
+        }
         var forModel = status == ToolExecutionStatus.Succeeded
             ? Truncate(resultJson!)
             : JsonSerializer.Serialize(new { error }, ResultJson);

@@ -45,6 +45,7 @@ internal sealed class RateLimitFilter(string policy) : IEndpointFilter
             return await next(context);
         }
 
+        AISupportOps.Application.Common.Telemetry.RateLimitRejections.Add(1, new KeyValuePair<string, object?>("policy", policy));
         var retryAfter = Math.Max(1, (int)Math.Ceiling(decision.RetryAfter.TotalSeconds));
         http.Response.Headers.RetryAfter = retryAfter.ToString(CultureInfo.InvariantCulture);
         return TypedResults.Problem(new ProblemDetails

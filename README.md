@@ -47,6 +47,7 @@ cp .env.example .env              # set POSTGRES_PASSWORD, JWT_SIGNING_KEY (and 
 # Option A — everything in containers
 docker compose --profile full up -d --build
 curl http://localhost:8080/health/ready   # -> Healthy
+# Traces, metrics, and logs: http://localhost:18888 (Aspire Dashboard)
 
 # Option B — dependencies in Docker, API on the host (for debugging)
 docker compose up -d
@@ -126,7 +127,7 @@ Auth model, RBAC rules, and tenant isolation design: [docs/security.md](docs/sec
 - [x] Phase 9 — Support tickets: workflow state machine, per-tenant numbering, optimistic concurrency, audit log
 - [x] Phase 10 — Agentic AI: declaration-only tools, role-filtered toolsets, schema validation, budgets, tool execution log
 - [x] Phase 11 — AI evaluation: labelled dataset, retrieval/citation/abstention metrics, LLM-judge groundedness, online metrics, feedback, CI quality gate ([docs/evaluation.md](docs/evaluation.md))
-- [ ] Phase 12 — Observability
+- [x] Phase 12 — Observability: OpenTelemetry traces/metrics/logs, GenAI spans, Aspire Dashboard
 - [ ] Phase 13+ — React dashboard, CI/CD, Azure deployment
 
 ## License

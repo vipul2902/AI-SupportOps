@@ -85,6 +85,9 @@ public sealed partial class ChatService(
 
     public async IAsyncEnumerable<ChatStreamEvent> StreamTurnAsync(ChatTurn turn, [EnumeratorCancellation] CancellationToken ct)
     {
+        using var activity = Telemetry.Source.StartActivity("chat.turn");
+        activity?.SetTag("chat.conversation_id", turn.Conversation.Id);
+        activity?.SetTag("chat.history_messages", turn.History.Count);
         var stopwatch = Stopwatch.StartNew();
         yield return new ChatMetaEvent(turn.Conversation.Id, turn.UserMessage.Id, turn.Conversation.Title);
 
@@ -103,6 +106,8 @@ public sealed partial class ChatService(
 
         if (preparation is null)
         {
+            activity.SetError(setupError!);
+            Telemetry.Answers.Add(1, new("outcome", "Failed"), new("channel", "chat"));
             var failed = await SaveAssistantAsync(turn, string.Empty, MessageStatus.Failed, "Failed", standalone, [], null, null, null, stopwatch);
             yield return new ChatErrorEvent(setupError!, failed.Id);
             yield break;
@@ -111,6 +116,8 @@ public sealed partial class ChatService(
         // 2. Nothing relevant: answer honestly without calling the LLM.
         if (preparation.ShouldAbstain)
         {
+            Telemetry.Answers.Add(1, new("outcome", nameof(AnswerOutcome.NoRelevantSources)), new("channel", "chat"));
+            activity?.SetTag("rag.outcome", nameof(AnswerOutcome.NoRelevantSources));
             yield return new ChatDeltaEvent(RagService.NoAnswerMessage);
             var abstained = await SaveAssistantAsync(turn, RagService.NoAnswerMessage, MessageStatus.Completed,
                 nameof(AnswerOutcome.NoRelevantSources), preparation.Question, [], null, null, null, stopwatch);
@@ -126,6 +133,7 @@ public sealed partial class ChatService(
             settings.MaxOutputTokens,
             settings.Temperature);
 
+        var generationTimer = Stopwatch.StartNew();
         var answer = new StringBuilder();
         LlmUsage? usage = null;
         string? model = null;
@@ -168,12 +176,16 @@ public sealed partial class ChatService(
         }
 
         // 4. Persist whatever happened. The client may be gone, so don't use its token.
+        Telemetry.GenerationDuration.Record(generationTimer.ElapsedMilliseconds, new KeyValuePair<string, object?>("channel", "chat"));
+        Telemetry.RecordTokens("chat", usage?.InputTokens, usage?.OutputTokens);
         var text = answer.ToString();
         var analysis = rag.Analyze(preparation, text);
         var citations = analysis.Citations.Select(ToMessageCitation).ToList();
 
         if (interrupted)
         {
+            activity?.SetTag("chat.interrupted", true);
+            Telemetry.Answers.Add(1, new("outcome", "Interrupted"), new("channel", "chat"));
             await SaveAssistantAsync(turn, text, MessageStatus.Interrupted, analysis.Outcome.ToString(), preparation.Question, citations, model, usage, preparation.PromptId, stopwatch);
             LogInterrupted(logger, turn.Conversation.Id, text.Length);
             yield break;
@@ -181,11 +193,16 @@ public sealed partial class ChatService(
 
         if (streamError is not null)
         {
+            activity.SetError(streamError);
+            Telemetry.Answers.Add(1, new("outcome", "Failed"), new("channel", "chat"));
             var failed = await SaveAssistantAsync(turn, text, MessageStatus.Failed, "Failed", preparation.Question, citations, model, usage, preparation.PromptId, stopwatch);
             yield return new ChatErrorEvent(streamError, failed.Id);
             yield break;
         }
 
+        Telemetry.Answers.Add(1, new("outcome", analysis.Outcome.ToString()), new("channel", "chat"));
+        activity?.SetTag("rag.outcome", analysis.Outcome.ToString());
+        activity?.SetTag("rag.citations", citations.Count);
         var saved = await SaveAssistantAsync(turn, text, MessageStatus.Completed, analysis.Outcome.ToString(), preparation.Question, citations, model, usage, preparation.PromptId, stopwatch);
         LogTurn(logger, turn.Conversation.Id, analysis.Outcome, preparation.Sources.Count, citations.Count, turn.History.Count, usage?.InputTokens, usage?.OutputTokens, stopwatch.ElapsedMilliseconds);
 

@@ -54,11 +54,14 @@ public sealed partial class RagService(
     public async Task<AskResponse> AskAsync(AskRequest request, CancellationToken ct)
     {
         var settings = options.Value;
+        using var activity = Telemetry.Source.StartActivity("rag.ask");
         var total = Stopwatch.StartNew();
         var preparation = await PrepareAsync(request.Question, request.DocumentIds ?? [], ct);
 
         if (preparation.ShouldAbstain)
         {
+            Telemetry.Answers.Add(1, new("outcome", nameof(AnswerOutcome.NoRelevantSources)), new("channel", "ask"));
+            activity?.SetTag("rag.outcome", nameof(AnswerOutcome.NoRelevantSources));
             return new AskResponse(NoAnswerMessage, AnswerOutcome.NoRelevantSources, [], 0, [], null, preparation.PromptId,
                 null, null, new RagTimings(preparation.RetrievalMs, 0, total.ElapsedMilliseconds));
         }
@@ -67,8 +70,14 @@ public sealed partial class RagService(
         var response = await llm.CompleteAsync(
             new LlmRequest(preparation.SystemPrompt, [new LlmMessage(LlmRole.User, preparation.UserMessage)], settings.MaxOutputTokens, settings.Temperature), ct);
         var generationMs = generationTimer.ElapsedMilliseconds;
+        Telemetry.GenerationDuration.Record(generationMs, new KeyValuePair<string, object?>("channel", "ask"));
+        Telemetry.RecordTokens("rag", response.Usage.InputTokens, response.Usage.OutputTokens);
 
         var analysis = Analyze(preparation, response.Text);
+        Telemetry.Answers.Add(1, new("outcome", analysis.Outcome.ToString()), new("channel", "ask"));
+        activity?.SetTag("rag.outcome", analysis.Outcome.ToString());
+        activity?.SetTag("rag.citations", analysis.Citations.Count);
+        activity?.SetTag("rag.invalid_citations", analysis.InvalidCitationNumbers.Count);
         var tenantId = currentUser.RequireTenantId();
         LogAnswered(logger, tenantId, analysis.Outcome, preparation.Sources.Count, analysis.Citations.Count,
             analysis.InvalidCitationNumbers.Count, response.Usage.InputTokens, response.Usage.OutputTokens, preparation.RetrievalMs, generationMs);
@@ -89,18 +98,28 @@ public sealed partial class RagService(
         }
 
         // 1. Retrieve and keep only relevant chunks.
+        using var activity = Telemetry.Source.StartActivity("rag.prepare");
+        activity?.SetTag("rag.top_k", settings.TopK);
+        activity?.SetTag("rag.min_score", settings.MinScore);
+        activity?.SetTag("rag.prompt_id", settings.PromptId);
         var retrievalTimer = Stopwatch.StartNew();
         var retrieved = await retrieval.SearchAsync(new RetrievalQuery(cleaned, settings.TopK, documentIds, settings.MinScore), ct);
         var retrievalMs = retrievalTimer.ElapsedMilliseconds;
+        Telemetry.RetrievalDuration.Record(retrievalMs);
+        activity?.SetTag("rag.retrieved", retrieved.Count);
+        activity?.SetTag("rag.top_score", retrieved.Count > 0 ? retrieved[0].Score : null);
 
         if (retrieved.Count == 0)
         {
+            activity?.SetTag("rag.abstained", true);
             LogAbstained(logger, tenantId, settings.MinScore);
             return new RagPreparation(cleaned, [], string.Empty, string.Empty, settings.PromptId, retrievalMs);
         }
 
         // 2. Budgeted, numbered, escaped context + versioned system prompt.
         var context = new RagContextBuilder(tokenCounter).Build(retrieved, settings.MaxContextTokens);
+        activity?.SetTag("rag.sources_in_context", context.Sources.Count);
+        activity?.SetTag("rag.context_tokens", context.TokenCount);
         var organization = await db.Tenants.Where(t => t.Id == tenantId).Select(t => t.Name).SingleAsync(ct);
         var systemPrompt = PromptLibrary.Render(settings.PromptId, new Dictionary<string, string> { ["organization"] = organization });
         var userMessage = $"""
