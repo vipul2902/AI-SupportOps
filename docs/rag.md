@@ -169,6 +169,39 @@ Documents are untrusted: anyone who can upload can try to instruct the model.
 These reduce risk; they do not make injection impossible. No prompt-level defense is complete,
 which is why authority (tools, data access) is enforced in code, not in the prompt.
 
+## 4. Conversational chat with streaming (implemented)
+
+`POST /api/chat` `{ "message", "conversationId"?, "documentIds"? }` → `text/event-stream`
+
+```
+event: meta   data: {"conversationId":"…","userMessageId":"…","conversationTitle":"…"}
+event: delta  data: {"text":"According "}          ← many, as tokens are generated
+event: delta  data: {"text":"to the documentation…"}
+event: done   data: {"messageId":"…","outcome":"Answered","citations":[…],"retrievalQuery":"…","inputTokens":…}
+              (or)  event: error  data: {"message":"…","messageId":"…"}
+```
+
+### Per turn
+
+1. **Begin** (before any byte is sent): validate, load the conversation (private to its creator: 404 for anyone else), load short-term history, persist the user message. Errors here are real `4xx` responses.
+2. **Rewrite** the follow-up into a standalone question (only when there is history; one small LLM call at temperature 0). "Where is the link sent?" → "How do I reset my password? Where is the link sent?". Falls back to the raw message if the model is unavailable.
+3. **Prepare** with the shared RAG pipeline (threshold, budget, escaping). Abstain without an LLM call if nothing is relevant.
+4. **Stream** the answer: system prompt + history window + current turn's sources/question.
+5. **Persist** the assistant message with citations (jsonb snapshot), model, prompt id, tokens, latency, and status: `Completed`, `Interrupted` (client disconnected, partial answer kept), or `Failed`.
+
+### Why SSE (not WebSockets/SignalR)
+
+Answers flow one way, server to client. SSE is plain HTTP: it works through proxies and load balancers, needs no hub or sticky sessions, and the request carries normal auth and rate limiting. SignalR earns its place for bidirectional or server-initiated pushes (e.g. live ticket updates), not for this.
+
+### Short-term context strategy
+
+- The last **10 messages**, capped at **2,000 tokens**, selected newest-first and sent oldest-first.
+- Old `[n]` markers are stripped: they referenced that turn's sources and would confuse the current numbering.
+- Sources are attached **only to the current turn**. Re-sending past sources would multiply cost each turn.
+- Failed messages are excluded; a window never starts with an orphaned assistant reply.
+
+This bounds per-turn cost no matter how long the conversation runs. Long-range memory (summaries, Redis) is Phase 8.
+
 ### Limitations
 
 - Citation checks prove a cited source was *provided*, not that it *supports* the claim. Groundedness scoring comes in Phase 11.

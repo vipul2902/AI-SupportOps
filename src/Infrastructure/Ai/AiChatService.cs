@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using AISupportOps.Application.Ai;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -20,17 +21,7 @@ internal sealed partial class AiChatService(
 
     public async Task<LlmResponse> CompleteAsync(LlmRequest request, CancellationToken ct)
     {
-        // System prompt as a dedicated system message, separate from (untrusted) user content.
-        var messages = new List<ChatMessage> { new(ChatRole.System, request.SystemPrompt) };
-        messages.AddRange(request.Messages.Select(m =>
-            new ChatMessage(m.Role == LlmRole.User ? ChatRole.User : ChatRole.Assistant, m.Content)));
-
-        var chatOptions = new ChatOptions
-        {
-            ModelId = modelId,
-            MaxOutputTokens = request.MaxOutputTokens,
-            Temperature = request.Temperature,
-        };
+        var (messages, chatOptions) = ToProviderRequest(request);
 
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeoutCts.CancelAfter(timeout);
@@ -57,6 +48,67 @@ internal sealed partial class AiChatService(
             LogFailed(logger, ex, modelId, stopwatch.ElapsedMilliseconds);
             throw new AiUnavailableException("The AI model is currently unavailable.", ex);
         }
+    }
+
+    public async IAsyncEnumerable<LlmStreamUpdate> StreamAsync(LlmRequest request, [EnumeratorCancellation] CancellationToken ct)
+    {
+        var (messages, chatOptions) = ToProviderRequest(request);
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(timeout);
+        var stopwatch = Stopwatch.StartNew();
+        LlmUsage? usage = null;
+
+        // Manual enumeration: C# forbids 'yield' inside try/catch, and provider errors must be translated.
+        await using var updates = client.GetStreamingResponseAsync(messages, chatOptions, timeoutCts.Token)
+            .GetAsyncEnumerator(timeoutCts.Token);
+        while (true)
+        {
+            ChatResponseUpdate update;
+            try
+            {
+                if (!await updates.MoveNextAsync())
+                {
+                    break;
+                }
+
+                update = updates.Current;
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw; // client disconnected
+            }
+            catch (Exception ex)
+            {
+                LogFailed(logger, ex, modelId, stopwatch.ElapsedMilliseconds);
+                throw new AiUnavailableException(
+                    ex is OperationCanceledException ? "The AI model did not respond in time." : "The AI model is currently unavailable.", ex);
+            }
+
+            var details = update.Contents.OfType<UsageContent>().FirstOrDefault()?.Details;
+            if (details is not null)
+            {
+                usage = new LlmUsage(details.InputTokenCount, details.OutputTokenCount);
+            }
+
+            yield return new LlmStreamUpdate(update.Text ?? string.Empty, details is null ? null : usage, update.ModelId);
+        }
+
+        LogCompleted(logger, modelId, usage?.InputTokens, usage?.OutputTokens, stopwatch.ElapsedMilliseconds);
+    }
+
+    /// <summary>System prompt as a dedicated system message, separate from (untrusted) user content.</summary>
+    private (List<ChatMessage> Messages, ChatOptions Options) ToProviderRequest(LlmRequest request)
+    {
+        var messages = new List<ChatMessage> { new(ChatRole.System, request.SystemPrompt) };
+        messages.AddRange(request.Messages.Select(m =>
+            new ChatMessage(m.Role == LlmRole.User ? ChatRole.User : ChatRole.Assistant, m.Content)));
+
+        return (messages, new ChatOptions
+        {
+            ModelId = modelId,
+            MaxOutputTokens = request.MaxOutputTokens,
+            Temperature = request.Temperature,
+        });
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "LLM call to {Model}: tokens in/out {InputTokens}/{OutputTokens} in {ElapsedMs} ms")]

@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using AISupportOps.Application.Common;
+using AISupportOps.Domain.Chat;
 using AISupportOps.Domain.Common;
 using AISupportOps.Domain.Documents;
 using AISupportOps.Domain.Identity;
@@ -27,6 +28,10 @@ public sealed class AppDbContext(
     public DbSet<Document> Documents => Set<Document>();
 
     public DbSet<DocumentChunk> DocumentChunks => Set<DocumentChunk>();
+
+    public DbSet<Conversation> Conversations => Set<Conversation>();
+
+    public DbSet<Message> Messages => Set<Message>();
 
     /// <summary>
     /// Read by the global query filters on every query. EF Core evaluates it per DbContext

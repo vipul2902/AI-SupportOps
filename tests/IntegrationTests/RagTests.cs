@@ -130,6 +130,12 @@ public class RagTests(ApiFactory factory)
             var text = FakeChatClient.Answer(request.Messages[^1].Content);
             return Task.FromResult(new LlmResponse(text, ModelId, new LlmUsage(1, 1), "stop"));
         }
+
+        public async IAsyncEnumerable<LlmStreamUpdate> StreamAsync(LlmRequest request, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+        {
+            var response = await CompleteAsync(request, ct);
+            yield return new LlmStreamUpdate(response.Text, response.Usage, ModelId);
+        }
     }
 
     private sealed class FailingChatService : IAiChatService
@@ -137,6 +143,9 @@ public class RagTests(ApiFactory factory)
         public string ModelId => "failing";
 
         public Task<LlmResponse> CompleteAsync(LlmRequest request, CancellationToken ct) =>
+            throw new AiUnavailableException("The AI model is currently unavailable.");
+
+        public IAsyncEnumerable<LlmStreamUpdate> StreamAsync(LlmRequest request, CancellationToken ct) =>
             throw new AiUnavailableException("The AI model is currently unavailable.");
     }
 

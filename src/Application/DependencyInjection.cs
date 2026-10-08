@@ -1,3 +1,4 @@
+using AISupportOps.Application.Chat;
 using AISupportOps.Application.Documents;
 using AISupportOps.Application.Identity;
 using AISupportOps.Application.Ingestion;
@@ -19,6 +20,14 @@ public static class DependencyInjection
         services.AddScoped<DocumentIngestionService>();
         services.AddScoped<KnowledgeSearchService>();
         services.AddScoped<IRagService, RagService>();
+        services.AddScoped<QueryRewriter>();
+        services.AddScoped<ChatService>();
+        services.AddScoped<ConversationService>();
+
+        services.AddOptions<ConversationOptions>()
+            .Bind(configuration.GetSection(ConversationOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
         services.AddOptions<RagOptions>()
             .Bind(configuration.GetSection(RagOptions.SectionName))

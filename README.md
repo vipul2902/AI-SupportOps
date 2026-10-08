@@ -90,6 +90,8 @@ dotnet test                       # integration tests need Docker running
 | `GET /api/documents/{id}/chunks` | Viewer+ |
 | `POST /api/search` (semantic search, tenant-scoped) | Viewer+ |
 | `POST /api/ask` (RAG answer with citations, rate limited per user) | Viewer+ |
+| `POST /api/chat` (streaming SSE: meta → delta* → done/error) | Viewer+ |
+| `GET /api/conversations`, `GET/PATCH/DELETE /api/conversations/{id}` (own conversations only) | Viewer+ |
 | `POST /api/documents/{id}/reprocess`, `DELETE /api/documents/{id}` | Admin+ |
 
 Auth model, RBAC rules, and tenant isolation design: [docs/security.md](docs/security.md)
@@ -109,7 +111,8 @@ Auth model, RBAC rules, and tenant isolation design: [docs/security.md](docs/sec
 - [x] Phase 4 — Ingestion pipeline: background worker, PDF/DOCX/text extraction, token-aware chunking ([docs/rag.md](docs/rag.md))
 - [x] Phase 5 — Embeddings (text-embedding-3-small), pgvector HNSW, tenant-filtered semantic search
 - [x] Phase 6 — RAG: thresholded retrieval, budgeted context, versioned prompts, verified citations, injection defenses
-- [ ] Phase 7–8 — Streaming chat, citations, conversation memory
+- [x] Phase 7 — Streaming chat (SSE), persistent conversations, follow-up rewriting, citations
+- [ ] Phase 8 — Conversation memory, summaries, Redis
 - [ ] Phase 9–10 — Support tickets, agent tool calling
 - [ ] Phase 11–12 — AI evaluation, observability
 - [ ] Phase 13+ — React dashboard, CI/CD, Azure deployment

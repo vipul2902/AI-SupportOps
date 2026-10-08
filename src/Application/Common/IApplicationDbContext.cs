@@ -1,3 +1,4 @@
+using AISupportOps.Domain.Chat;
 using AISupportOps.Domain.Documents;
 using AISupportOps.Domain.Identity;
 using AISupportOps.Domain.Tenants;
@@ -26,6 +27,10 @@ public interface IApplicationDbContext
     DbSet<Document> Documents { get; }
 
     DbSet<DocumentChunk> DocumentChunks { get; }
+
+    DbSet<Conversation> Conversations { get; }
+
+    DbSet<Message> Messages { get; }
 
     ChangeTracker ChangeTracker { get; }
 

@@ -18,7 +18,11 @@ public sealed partial class FakeChatClient : IChatClient
         IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
     {
         var list = messages.ToList();
-        var text = Answer(list.LastOrDefault(m => m.Role == ChatRole.User)?.Text ?? string.Empty);
+        var system = list.FirstOrDefault(m => m.Role == ChatRole.System)?.Text ?? string.Empty;
+        var lastUser = list.LastOrDefault(m => m.Role == ChatRole.User)?.Text ?? string.Empty;
+        var text = system.Contains("standalone question", StringComparison.OrdinalIgnoreCase)
+            ? Rewrite(lastUser)
+            : Answer(lastUser);
         var inputChars = list.Sum(m => m.Text.Length);
 
         return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, text))
@@ -37,9 +41,30 @@ public sealed partial class FakeChatClient : IChatClient
         foreach (var word in Regex.Split(response.Text, @"(?<=\s)"))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            await Task.Yield();
             yield return new ChatResponseUpdate(ChatRole.Assistant, word) { ModelId = ModelId };
         }
+
+        // Real providers report usage in a final update; mimic that.
+        yield return new ChatResponseUpdate(ChatRole.Assistant, [new UsageContent(response.Usage!)]) { ModelId = ModelId };
     }
+
+    /// <summary>
+    /// Fake follow-up rewriting: prepend the earlier user turns to the follow-up, so retrieval
+    /// sees the topic words the follow-up omits ("and on mobile?" → "...reset password... and on mobile?").
+    /// </summary>
+    public static string Rewrite(string rewriteRequest)
+    {
+        var userTurns = UserTurn().Matches(rewriteRequest).Select(m => m.Groups["text"].Value.Trim());
+        var followUp = FollowUp().Match(rewriteRequest) is { Success: true } f ? f.Groups["text"].Value.Trim() : rewriteRequest;
+        return string.Join(' ', userTurns.Append(followUp));
+    }
+
+    [GeneratedRegex(@"^User: (?<text>.+)$", RegexOptions.Multiline)]
+    private static partial Regex UserTurn();
+
+    [GeneratedRegex(@"<follow_up>\s*(?<text>.*?)\s*</follow_up>", RegexOptions.Singleline)]
+    private static partial Regex FollowUp();
 
     public static string Answer(string userMessage)
     {
