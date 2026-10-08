@@ -76,8 +76,13 @@ public sealed class BlobStorageTests(ApiFactory factory) : IAsyncLifetime
     [Fact]
     public async Task Full_upload_and_ingestion_flow_works_on_blob_storage()
     {
+        // Own database: the shared test host's ingestion worker (configured for LOCAL storage) polls the
+        // shared database too and could claim this document first. That race failed CI while passing locally.
+        var isolatedDb = new Npgsql.NpgsqlConnectionStringBuilder(factory.PostgresConnectionString) { Database = $"blob_{Guid.NewGuid():N}" }.ConnectionString;
         using var app = factory.WithWebHostBuilder(b =>
         {
+            b.UseSetting("ConnectionStrings:Postgres", isolatedDb);
+            b.UseSetting("Database:ApplyMigrationsOnStartup", "true");
             b.UseSetting("Storage:Provider", "AzureBlob");
             b.UseSetting("Storage:AzureBlob:ConnectionString", _azurite.GetConnectionString());
             b.UseSetting("Storage:AzureBlob:ContainerName", _container.Name);
@@ -101,7 +106,7 @@ public sealed class BlobStorageTests(ApiFactory factory) : IAsyncLifetime
         }
         while (doc.Status is DocumentStatus.Uploaded or DocumentStatus.Processing && DateTime.UtcNow < deadline);
 
-        Assert.Equal(DocumentStatus.Processed, doc.Status); // the worker read the file back from Blob storage
+        Assert.True(doc.Status == DocumentStatus.Processed, $"Expected Processed but was {doc.Status}: {doc.Error}"); // worker read the file back from Blob storage
         Assert.Equal(text, await client.GetStringAsync(new Uri($"/api/documents/{created.Id}/content", UriKind.Relative)));
         Assert.Equal(1, await _container.GetBlobsAsync().CountAsync());
     }
