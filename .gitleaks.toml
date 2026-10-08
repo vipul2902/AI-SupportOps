@@ -1,0 +1,18 @@
+# Secret scanning config for gitleaks (CI "security" job).
+# Extends the default rules; the allowlist covers only known, intentional test fixtures and placeholders.
+title = "AI-SupportOps gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Intentional non-secrets: test-only signing key, test passwords, example placeholders"
+regexes = [
+  '''integration-tests-signing-key-0123456789abcdef''',
+  '''correct-horse-battery(-staple)?''',
+  '''replace-with[-a-z0-9]*''',
+]
+paths = [
+  '''\.env\.example$''',
+  '''\.env\.prod\.example$''',
+]

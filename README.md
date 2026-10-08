@@ -1,5 +1,7 @@
 # AI-SupportOps
 
+[![CI](https://github.com/vipul2902/AI-SupportOps/actions/workflows/ci.yml/badge.svg)](https://github.com/vipul2902/AI-SupportOps/actions/workflows/ci.yml)
+
 **AI-powered customer support and knowledge platform** — a multi-tenant SaaS where companies upload their documentation, get grounded AI answers with citations, and let a controlled AI agent work support tickets through audited tools.
 
 > 🚧 Under active development. Built phase by phase; see [Roadmap](#roadmap).
@@ -97,6 +99,20 @@ See [.env.example](.env.example). Secrets are never committed: Docker reads `.en
 dotnet test                       # unit, integration, and RAG evaluation tests (Docker required for the latter two)
 ```
 
+## CI/CD
+
+GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push and pull request:
+
+| Job | What it enforces |
+|---|---|
+| Backend | Build with analyzers as errors; unit, integration (Testcontainers: real pgvector + Redis), and the RAG evaluation quality gate; test results + coverage as artifacts |
+| Frontend | Lint, Vitest, TypeScript typecheck, production build |
+| Security | NuGet (incl. transitive) and npm vulnerability audits fail the build; gitleaks scans the full git history |
+| Docker | Both images build (layer-cached) |
+| Publish | On `main` only, after all gates pass: push `ghcr.io/vipul2902/aisupportops-{api,web}` tagged `sha-<commit>` and `latest`, with SBOM and provenance |
+
+CI needs no secrets: tests use the offline Fake AI provider and throwaway containers.
+
 ## API overview
 
 | Endpoint | Access |
@@ -125,11 +141,10 @@ dotnet test                       # unit, integration, and RAG evaluation tests 
 | `POST /api/agent` (AI agent with role-filtered, validated, audited tool calls) | Viewer+ (tools depend on role) |
 | `POST /api/conversations/{id}/messages/{messageId}/feedback` | Viewer+ (own conversations) |
 | `GET /api/evaluations/metrics`, `POST/GET /api/evaluations/runs` | Admin+ |
-
-Agent design and safety controls: [docs/agentic-ai.md](docs/agentic-ai.md)
 | `POST /api/documents/{id}/reprocess`, `DELETE /api/documents/{id}` | Admin+ |
 
-Auth model, RBAC rules, and tenant isolation design: [docs/security.md](docs/security.md)
+Auth model, RBAC rules, and tenant isolation design: [docs/security.md](docs/security.md) ·
+Agent design and safety controls: [docs/agentic-ai.md](docs/agentic-ai.md)
 
 ## Health endpoints
 
@@ -141,7 +156,7 @@ Auth model, RBAC rules, and tenant isolation design: [docs/security.md](docs/sec
 ## Roadmap
 
 - [x] Phase 1 — Solution, Docker, PostgreSQL + pgvector, Redis, health checks
-- [ ] Phase 2 — Authentication, organizations, multi-tenancy, RBAC
+- [x] Phase 2 — Authentication, organizations, multi-tenancy, RBAC
 - [x] Phase 3 — Document upload, validation, storage
 - [x] Phase 4 — Ingestion pipeline: background worker, PDF/DOCX/text extraction, token-aware chunking ([docs/rag.md](docs/rag.md))
 - [x] Phase 5 — Embeddings (text-embedding-3-small), pgvector HNSW, tenant-filtered semantic search
@@ -155,7 +170,8 @@ Auth model, RBAC rules, and tenant isolation design: [docs/security.md](docs/sec
 - [x] Phase 13 — React SaaS dashboard: streaming chat, knowledge base, tickets, evaluations, team
 - [x] Phase 14 — Security hardening: httpOnly refresh cookie, CSRF guard, atomic account lockout, trusted proxy headers, security headers
 - [x] Phase 15 — Production Docker: nginx + SPA image, migration job, hardened containers, internal data network
-- [ ] Phase 16+ — CI/CD, Azure deployment
+- [x] Phase 16 — CI/CD: GitHub Actions gates (tests, evaluation, audits, secret scan, image builds) and GHCR publishing
+- [ ] Phase 17 — Azure deployment
 
 ## License
 
